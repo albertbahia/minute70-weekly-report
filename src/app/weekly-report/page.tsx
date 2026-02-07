@@ -41,13 +41,13 @@ export default function WeeklyReportPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!data.ok) {
         setStatus("error");
         setErrorMsg(data.error || "Something went wrong.");
         return;
       }
 
-      setIsTeammate(data.isTeammate);
+      setIsTeammate(data.source === "teammate");
       setStatus("success");
     } catch {
       setStatus("error");

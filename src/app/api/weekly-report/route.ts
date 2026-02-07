@@ -23,14 +23,17 @@ export async function POST(request: Request) {
 
     if (!email || !name || !accomplishments || !goals) {
       return NextResponse.json(
-        { error: "Email, name, accomplishments, and goals are required." },
+        { ok: false, reason: "validation", error: "Email, name, accomplishments, and goals are required." },
         { status: 400 }
       );
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: "Invalid email address." }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid email address." },
+        { status: 400 }
+      );
     }
 
     const isTeammate = teammateCode === TEAMMATE_CODE;
@@ -50,15 +53,23 @@ export async function POST(request: Request) {
 
       if (lookupError) {
         console.error("Rate-limit lookup failed:", lookupError);
-        return NextResponse.json({ error: "Server error." }, { status: 500 });
+        return NextResponse.json(
+          { ok: false, reason: "error", error: "Server error." },
+          { status: 500 }
+        );
       }
 
       if (recent && recent.length > 0) {
         const nextAllowed = new Date(
           new Date(recent[0].created_at).getTime() + RATE_LIMIT_DAYS * 24 * 60 * 60 * 1000
         );
+        const daysRemaining = Math.ceil((nextAllowed.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
         return NextResponse.json(
           {
+            ok: false,
+            reason: "limit",
+            source: "public",
+            daysRemaining,
             error: `You already submitted a report recently. You can submit again after ${nextAllowed.toLocaleDateString()}.`,
           },
           { status: 429 }
@@ -82,7 +93,10 @@ export async function POST(request: Request) {
 
     if (insertError || !report) {
       console.error("Insert failed:", insertError);
-      return NextResponse.json({ error: "Failed to save report." }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, reason: "error", error: "Failed to save report." },
+        { status: 500 }
+      );
     }
 
     // --- Follow-up reminder (teammate only, opt-in) ---
@@ -108,11 +122,14 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      success: true,
-      isTeammate,
-      followupCreated,
+      ok: true,
+      source: isTeammate ? "teammate" : "public",
+      followupScheduled: followupCreated,
     });
   } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, reason: "validation", error: "Invalid request body." },
+      { status: 400 }
+    );
   }
 }
