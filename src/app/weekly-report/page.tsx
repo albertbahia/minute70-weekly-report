@@ -219,7 +219,7 @@ export default function WeeklyReportPage() {
             </h3>
             <div>
               <p className="text-sm font-medium text-[var(--foreground)]">
-                MD-4 Aerobic Power Session (45 min)
+                4 days before your match: Stamina Builder (45 min)
               </p>
               <ul className="mt-1.5 space-y-1 text-sm text-[var(--foreground)]">
                 <li className="flex gap-2">
