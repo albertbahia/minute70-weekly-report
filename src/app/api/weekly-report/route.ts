@@ -64,6 +64,7 @@ export async function POST(request: Request) {
           new Date(recent[0].created_at).getTime() + RATE_LIMIT_DAYS * 24 * 60 * 60 * 1000
         );
         const daysRemaining = Math.ceil((nextAllowed.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+        console.log(`[rate-limit] blocked ${email.toLowerCase()} — ${daysRemaining}d remaining`);
         return NextResponse.json(
           {
             ok: false,
@@ -118,12 +119,16 @@ export async function POST(request: Request) {
         // Non-fatal: report was still saved
       } else {
         followupCreated = true;
+        console.log(`[followup] scheduled for ${email.toLowerCase()} — send_at=${sendAt}`);
       }
     }
 
+    const source = isTeammate ? "teammate" : "public";
+    console.log(`[report] saved for ${email.toLowerCase()} — source=${source}`);
+
     return NextResponse.json({
       ok: true,
-      source: isTeammate ? "teammate" : "public",
+      source,
       followupScheduled: followupCreated,
     });
   } catch {
