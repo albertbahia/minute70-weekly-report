@@ -212,6 +212,51 @@ export default function WeeklyReportPage() {
             </div>
           )}
 
+          {/* Example output preview */}
+          <div className="mb-8 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 space-y-3">
+            <h3 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">
+              Example (what you&apos;ll get)
+            </h3>
+            <div>
+              <p className="text-sm font-medium text-[var(--foreground)]">
+                MD-4 Aerobic Power Session (45 min)
+              </p>
+              <ul className="mt-1.5 space-y-1 text-sm text-[var(--foreground)]">
+                <li className="flex gap-2">
+                  <span className="flex-shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+                  Warm-up: 8 min easy jog + mobility
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex-shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+                  Intervals: 6x2 min @ RPE 7 (1 min easy between)
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex-shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+                  Optional speed (toggle): 6x10s strides (80–90%) walk-back recovery
+                </li>
+                <li className="flex gap-2">
+                  <span className="flex-shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+                  Cooldown: 5–8 min
+                </li>
+              </ul>
+            </div>
+            <p className="text-xs text-[var(--muted)]">
+              Recovery example (you choose): {
+                ({
+                  Walk: "Walk — 20–30 min easy walk + mobility",
+                  Pool: "Pool — 20–30 min easy swim + mobility",
+                  Yoga: "Yoga — 20–30 min gentle flow + mobility",
+                  "Foam Roll": "Foam Roll — 20–30 min rolling + mobility",
+                  "Contrast Shower": "Contrast Shower — 10–15 min alternating hot/cold",
+                  "Full Rest": "Full Rest — no training, no cross-training",
+                } as Record<string, string>)[recoveryMode] ?? "Bike — 20–30 min easy spin + mobility"
+              }
+            </p>
+            <p className="text-xs text-[var(--muted)] italic">
+              Your plan adapts to your match day, legs status, and choices.
+            </p>
+          </div>
+
           <form onSubmit={handleContinue} className="space-y-7">
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
