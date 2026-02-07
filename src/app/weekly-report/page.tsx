@@ -144,7 +144,7 @@ export default function WeeklyReportPage() {
 
           {report.source === "teammate" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium text-center">
-              ELMPARC2 Beta Tester unlocked ✅
+              ELMPARC2 Beta unlocked ✅ Unlimited reports (free)
             </div>
           )}
 
@@ -199,9 +199,12 @@ export default function WeeklyReportPage() {
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg">
-          <h1 className="text-3xl font-bold text-[var(--foreground)] text-center mb-10">
-            Minute70 Weekly Report
+          <h1 className="text-3xl font-bold text-[var(--foreground)] text-center mb-2">
+            Minute70 Weekly Report (Beta)
           </h1>
+          <p className="text-sm text-[var(--muted)] text-center mb-10">
+            30 seconds → your week plan for strong legs in the final 20 minutes.
+          </p>
 
           {emailError && (
             <div className="mb-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm">
@@ -223,6 +226,12 @@ export default function WeeklyReportPage() {
                 placeholder="you@example.com"
                 className={inputClass}
               />
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
+                Public users get 1 report/week. Teammates get unlimited free beta access with a code. Email helps us enforce limits + send an optional 7-day reminder.
+              </p>
+              <p className="mt-1 text-xs text-[var(--muted)] italic">
+                No spam. Not public. Beta tracking only.
+              </p>
             </div>
 
             <button
@@ -414,7 +423,7 @@ export default function WeeklyReportPage() {
           {/* Teammate Code */}
           <div>
             <label htmlFor="teammateCode" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-              Teammate Code <span className="text-[var(--muted)] font-normal">(optional)</span>
+              Beta code <span className="text-[var(--muted)] font-normal">(optional)</span>
             </label>
             <input
               id="teammateCode"
@@ -424,6 +433,7 @@ export default function WeeklyReportPage() {
               placeholder="ELMPARC2FREE"
               className={inputClass}
             />
+            <p className="mt-1.5 text-xs text-[var(--muted)]">If you were given a code, enter it here.</p>
           </div>
 
           {/* Email reminder checkbox — teammate only */}
