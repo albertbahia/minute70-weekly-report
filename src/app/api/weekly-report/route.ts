@@ -6,24 +6,26 @@ const RATE_LIMIT_DAYS = 7;
 
 interface ReportBody {
   email: string;
-  name: string;
-  accomplishments: string;
-  goals: string;
-  blockers?: string;
+  matchDay: string;
+  trainingDays: number;
+  legsStatus: string;
   teammateCode?: string;
   emailReminder?: boolean;
 }
+
+const VALID_MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const VALID_LEGS = ["Fresh", "Medium", "Heavy", "Tweaky"];
 
 export async function POST(request: Request) {
   try {
     const body: ReportBody = await request.json();
 
     // --- Validation ---
-    const { email, name, accomplishments, goals, blockers, teammateCode, emailReminder } = body;
+    const { email, matchDay, trainingDays, legsStatus, teammateCode, emailReminder } = body;
 
-    if (!email || !name || !accomplishments || !goals) {
+    if (!email || !matchDay || trainingDays === undefined || !legsStatus) {
       return NextResponse.json(
-        { ok: false, reason: "validation", error: "Email, name, accomplishments, and goals are required." },
+        { ok: false, reason: "validation", error: "Email, match day, training days, and legs status are required." },
         { status: 400 }
       );
     }
@@ -32,6 +34,27 @@ export async function POST(request: Request) {
     if (!emailRegex.test(email)) {
       return NextResponse.json(
         { ok: false, reason: "validation", error: "Invalid email address." },
+        { status: 400 }
+      );
+    }
+
+    if (!VALID_MATCH_DAYS.includes(matchDay)) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid match day." },
+        { status: 400 }
+      );
+    }
+
+    if (typeof trainingDays !== "number" || trainingDays < 0 || trainingDays > 7) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Training days must be 0–7." },
+        { status: 400 }
+      );
+    }
+
+    if (!VALID_LEGS.includes(legsStatus)) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid legs status." },
         { status: 400 }
       );
     }
@@ -83,10 +106,9 @@ export async function POST(request: Request) {
       .from("weekly_report_requests")
       .insert({
         email: email.toLowerCase(),
-        name,
-        accomplishments,
-        goals,
-        blockers: blockers || null,
+        match_day: matchDay,
+        training_days: trainingDays,
+        legs_status: legsStatus,
         teammate_code: isTeammate ? TEAMMATE_CODE : null,
       })
       .select("id")
@@ -109,7 +131,6 @@ export async function POST(request: Request) {
         .from("weekly_report_followups")
         .insert({
           email: email.toLowerCase(),
-          name,
           send_at: sendAt,
           report_request_id: report.id,
         });

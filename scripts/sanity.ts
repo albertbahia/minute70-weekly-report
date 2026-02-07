@@ -22,9 +22,9 @@ async function post(body: Record<string, unknown>): Promise<{ status: number; da
 
 const report = (overrides: Record<string, unknown> = {}) => ({
   email: EMAIL,
-  name: "Sanity Test",
-  accomplishments: "Ran sanity tests",
-  goals: "Ship it",
+  matchDay: "Saturday",
+  trainingDays: 3,
+  legsStatus: "Fresh",
   ...overrides,
 });
 

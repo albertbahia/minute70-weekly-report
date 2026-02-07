@@ -4,12 +4,15 @@ import { useState, FormEvent } from "react";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
+const MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const TRAINING_DAYS_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7"];
+const LEGS_OPTIONS = ["Fresh", "Medium", "Heavy", "Tweaky"] as const;
+
 export default function WeeklyReportPage() {
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [accomplishments, setAccomplishments] = useState("");
-  const [goals, setGoals] = useState("");
-  const [blockers, setBlockers] = useState("");
+  const [matchDay, setMatchDay] = useState("");
+  const [trainingDays, setTrainingDays] = useState("");
+  const [legsStatus, setLegsStatus] = useState("");
   const [teammateCode, setTeammateCode] = useState("");
   const [emailReminder, setEmailReminder] = useState(true);
 
@@ -30,10 +33,9 @@ export default function WeeklyReportPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          name,
-          accomplishments,
-          goals,
-          blockers,
+          matchDay,
+          trainingDays: Number(trainingDays),
+          legsStatus,
           teammateCode: teammateCode || undefined,
           emailReminder: teammateValidated ? emailReminder : undefined,
         }),
@@ -55,19 +57,25 @@ export default function WeeklyReportPage() {
     }
   }
 
+  const inputClass =
+    "w-full rounded-xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3.5 text-base text-[var(--foreground)] placeholder-[var(--muted)] border-l-4 border-l-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all duration-200";
+
+  const selectClass =
+    "w-full rounded-xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3.5 text-base text-[var(--foreground)] border-l-4 border-l-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all duration-200 appearance-none cursor-pointer";
+
   if (status === "success") {
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg space-y-6 text-center">
           {isTeammate && (
-            <div className="bg-emerald-900/40 border border-emerald-500/50 rounded-lg px-4 py-3 text-emerald-300 text-sm font-medium">
+            <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium">
               ELMPARC2 Beta Tester unlocked ✅
             </div>
           )}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-8 shadow-[var(--card-shadow)]">
             <div className="text-4xl mb-4">🎉</div>
-            <h2 className="text-xl font-semibold text-white mb-2">Report submitted!</h2>
-            <p className="text-zinc-400 text-sm">
+            <h2 className="text-xl font-semibold text-[var(--foreground)] mb-2">Report submitted!</h2>
+            <p className="text-[var(--muted)] text-sm">
               {isTeammate
                 ? "Thanks for your report. See you next week!"
                 : "Thanks for your report. You can submit again in 7 days."}
@@ -76,15 +84,14 @@ export default function WeeklyReportPage() {
               onClick={() => {
                 setStatus("idle");
                 setEmail("");
-                setName("");
-                setAccomplishments("");
-                setGoals("");
-                setBlockers("");
+                setMatchDay("");
+                setTrainingDays("");
+                setLegsStatus("");
                 setTeammateCode("");
                 setEmailReminder(true);
                 setIsTeammate(false);
               }}
-              className="mt-6 text-sm text-zinc-500 hover:text-white transition-colors underline underline-offset-4"
+              className="mt-6 text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
             >
               Submit another
             </button>
@@ -97,24 +104,21 @@ export default function WeeklyReportPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">Weekly Report</h1>
-          <p className="text-zinc-400 text-sm mt-1">
-            Share what you worked on this week.
-          </p>
-        </div>
+        <h1 className="text-3xl font-bold text-[var(--foreground)] text-center mb-10">
+          Minute70 Weekly Report
+        </h1>
 
         {teammateValidated && (
-          <div className="mb-6 bg-emerald-900/40 border border-emerald-500/50 rounded-lg px-4 py-3 text-emerald-300 text-sm font-medium">
+          <div className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium">
             ELMPARC2 Beta Tester unlocked ✅
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-7">
           {/* Email */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Email
+            <label htmlFor="email" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              Email <span className="text-[var(--destructive)]">*</span>
             </label>
             <input
               id="email"
@@ -123,98 +127,120 @@ export default function WeeklyReportPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent"
+              className={inputClass}
             />
           </div>
 
-          {/* Name */}
+          {/* Match Day */}
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Name
+            <label htmlFor="matchDay" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              Match Day <span className="text-[var(--destructive)]">*</span>
             </label>
-            <input
-              id="name"
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Jane Doe"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent"
-            />
+            <div className="relative">
+              <select
+                id="matchDay"
+                required
+                value={matchDay}
+                onChange={(e) => setMatchDay(e.target.value)}
+                className={`${selectClass} ${!matchDay ? "text-[var(--muted)]" : ""}`}
+              >
+                <option value="" disabled>Select match day</option>
+                {MATCH_DAYS.map((day) => (
+                  <option key={day} value={day}>{day}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
 
-          {/* Accomplishments */}
+          {/* Training Days Last 7 */}
           <div>
-            <label htmlFor="accomplishments" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              What did you accomplish this week?
+            <label htmlFor="trainingDays" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              Training Days Last 7 <span className="text-[var(--destructive)]">*</span>
             </label>
-            <textarea
-              id="accomplishments"
-              required
-              rows={3}
-              value={accomplishments}
-              onChange={(e) => setAccomplishments(e.target.value)}
-              placeholder="Shipped the new onboarding flow, fixed 3 bugs..."
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent resize-y"
-            />
+            <div className="relative">
+              <select
+                id="trainingDays"
+                required
+                value={trainingDays}
+                onChange={(e) => setTrainingDays(e.target.value)}
+                className={`${selectClass} ${!trainingDays ? "text-[var(--muted)]" : ""}`}
+              >
+                <option value="" disabled>Select training days</option>
+                {TRAINING_DAYS_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
 
-          {/* Goals */}
+          {/* Legs Status */}
           <div>
-            <label htmlFor="goals" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Goals for next week
+            <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">
+              Legs Status <span className="text-[var(--destructive)]">*</span>
             </label>
-            <textarea
-              id="goals"
-              required
-              rows={3}
-              value={goals}
-              onChange={(e) => setGoals(e.target.value)}
-              placeholder="Start the payments integration, write tests..."
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent resize-y"
-            />
-          </div>
-
-          {/* Blockers */}
-          <div>
-            <label htmlFor="blockers" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Blockers <span className="text-zinc-500 font-normal">(optional)</span>
-            </label>
-            <textarea
-              id="blockers"
-              rows={2}
-              value={blockers}
-              onChange={(e) => setBlockers(e.target.value)}
-              placeholder="Waiting on design review for the dashboard..."
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent resize-y"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              {LEGS_OPTIONS.map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-3 cursor-pointer select-none"
+                >
+                  <span
+                    className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      legsStatus === option
+                        ? "border-[var(--primary)] bg-[var(--primary)]"
+                        : "border-[var(--border)]"
+                    }`}
+                  >
+                    {legsStatus === option && (
+                      <span className="h-2 w-2 rounded-full bg-white" />
+                    )}
+                  </span>
+                  <input
+                    type="radio"
+                    name="legsStatus"
+                    value={option}
+                    checked={legsStatus === option}
+                    onChange={(e) => setLegsStatus(e.target.value)}
+                    required
+                    className="sr-only"
+                  />
+                  <span className="text-base text-[var(--foreground)]">{option}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           {/* Teammate Code */}
           <div>
-            <label htmlFor="teammateCode" className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Teammate code <span className="text-zinc-500 font-normal">(optional)</span>
+            <label htmlFor="teammateCode" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              Teammate Code <span className="text-[var(--muted)] font-normal">(optional)</span>
             </label>
             <input
               id="teammateCode"
               type="text"
               value={teammateCode}
               onChange={(e) => setTeammateCode(e.target.value)}
-              placeholder="Enter code if you have one"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent"
+              placeholder="ELMPARC2FREE"
+              className={inputClass}
             />
           </div>
 
           {/* Email reminder checkbox — teammate only */}
           {teammateValidated && (
-            <label className="flex items-start gap-3 cursor-pointer select-none">
+            <label className="flex items-center gap-3 cursor-pointer select-none rounded-xl border border-[var(--border)] bg-[var(--input-bg)] p-3 transition-all duration-200 hover:border-[var(--primary)]/50">
               <input
                 type="checkbox"
                 checked={emailReminder}
                 onChange={(e) => setEmailReminder(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500"
+                className="h-4 w-4 rounded border-[var(--border)] text-[var(--primary)] accent-[var(--primary)]"
               />
-              <span className="text-sm text-zinc-300">
+              <span className="text-sm text-[var(--foreground)]">
                 Email me in 7 days to fill out my next report
               </span>
             </label>
@@ -222,7 +248,7 @@ export default function WeeklyReportPage() {
 
           {/* Error */}
           {status === "error" && (
-            <div className="bg-red-900/40 border border-red-500/50 rounded-lg px-4 py-3 text-red-300 text-sm">
+            <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm">
               {errorMsg}
             </div>
           )}
@@ -231,9 +257,9 @@ export default function WeeklyReportPage() {
           <button
             type="submit"
             disabled={status === "submitting"}
-            className="w-full rounded-lg bg-white text-black font-medium py-2.5 text-sm hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:brightness-110 transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {status === "submitting" ? "Submitting..." : "Submit Report"}
+            {status === "submitting" ? "Generating..." : "Generate my report"}
           </button>
         </form>
       </div>
