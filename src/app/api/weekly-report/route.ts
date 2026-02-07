@@ -131,10 +131,17 @@ export async function POST(request: Request) {
       source,
       followupScheduled: followupCreated,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid request body." },
+        { status: 400 }
+      );
+    }
+    console.error("Unhandled error:", err);
     return NextResponse.json(
-      { ok: false, reason: "validation", error: "Invalid request body." },
-      { status: 400 }
+      { ok: false, reason: "error", error: "Internal server error." },
+      { status: 500 }
     );
   }
 }

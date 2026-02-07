@@ -25,5 +25,4 @@ create table if not exists weekly_report_followups (
 );
 
 create index if not exists idx_wrf_send_at
-  on weekly_report_followups (send_at)
-  where send_at > now();
+  on weekly_report_followups (send_at);
