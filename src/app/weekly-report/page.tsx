@@ -4,6 +4,14 @@ import { useState, FormEvent } from "react";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
+interface ReportData {
+  source: string;
+  statusLine: string;
+  planBullets: string[];
+  matchDayCue: string;
+  followupScheduled: boolean;
+}
+
 const MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const TRAINING_DAYS_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7"];
 const LEGS_OPTIONS = ["Fresh", "Medium", "Heavy", "Tweaky"] as const;
@@ -18,7 +26,7 @@ export default function WeeklyReportPage() {
 
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [isTeammate, setIsTeammate] = useState(false);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
 
   const teammateValidated = teammateCode === "ELMPARC2FREE";
 
@@ -44,12 +52,25 @@ export default function WeeklyReportPage() {
       const data = await res.json();
 
       if (!data.ok) {
-        setStatus("error");
-        setErrorMsg(data.error || "Something went wrong.");
+        if (data.reason === "limit") {
+          setStatus("error");
+          setErrorMsg(
+            `1 report per week. Try again in ${data.daysRemaining ?? "a few"} day${data.daysRemaining === 1 ? "" : "s"}.`
+          );
+        } else {
+          setStatus("error");
+          setErrorMsg(data.error || "Something went wrong.");
+        }
         return;
       }
 
-      setIsTeammate(data.source === "teammate");
+      setReportData({
+        source: data.source,
+        statusLine: data.statusLine,
+        planBullets: data.planBullets,
+        matchDayCue: data.matchDayCue,
+        followupScheduled: data.followupScheduled,
+      });
       setStatus("success");
     } catch {
       setStatus("error");
@@ -63,39 +84,74 @@ export default function WeeklyReportPage() {
   const selectClass =
     "w-full rounded-xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3.5 text-base text-[var(--foreground)] border-l-4 border-l-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all duration-200 appearance-none cursor-pointer";
 
-  if (status === "success") {
+  if (status === "success" && reportData) {
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-lg space-y-6 text-center">
-          {isTeammate && (
-            <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium">
+        <div className="w-full max-w-lg space-y-6">
+          <h1 className="text-3xl font-bold text-[var(--foreground)] text-center">
+            Your Weekly Report
+          </h1>
+
+          {reportData.source === "teammate" && (
+            <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium text-center">
               ELMPARC2 Beta Tester unlocked ✅
             </div>
           )}
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-8 shadow-[var(--card-shadow)]">
-            <div className="text-4xl mb-4">🎉</div>
-            <h2 className="text-xl font-semibold text-[var(--foreground)] mb-2">Report submitted!</h2>
-            <p className="text-[var(--muted)] text-sm">
-              {isTeammate
-                ? "Thanks for your report. See you next week!"
-                : "Thanks for your report. You can submit again in 7 days."}
+
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--card-shadow)] space-y-5">
+            {/* Status Line */}
+            <p className="text-lg font-medium text-[var(--foreground)]">
+              {reportData.statusLine}
             </p>
-            <button
-              onClick={() => {
-                setStatus("idle");
-                setEmail("");
-                setMatchDay("");
-                setTrainingDays("");
-                setLegsStatus("");
-                setTeammateCode("");
-                setEmailReminder(true);
-                setIsTeammate(false);
-              }}
-              className="mt-6 text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
-            >
-              Submit another
-            </button>
+
+            {/* 3-Bullet Plan */}
+            <div>
+              <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">
+                This week&apos;s plan
+              </h3>
+              <ul className="space-y-2.5">
+                {reportData.planBullets.map((bullet, i) => (
+                  <li key={i} className="flex gap-3 text-[var(--foreground)]">
+                    <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
+                    <span className="text-base">{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Match-Day Cue */}
+            <div className="rounded-xl bg-[var(--input-bg)] border border-[var(--border)] border-l-4 border-l-[var(--primary)] px-4 py-3">
+              <p className="text-sm text-[var(--foreground)]">
+                {reportData.matchDayCue}
+              </p>
+            </div>
           </div>
+
+          {/* CTA */}
+          <a
+            href="https://minute70.com#waitlist"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg text-center hover:brightness-110 transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
+          >
+            Get next week&apos;s report (join waitlist)
+          </a>
+
+          <button
+            onClick={() => {
+              setStatus("idle");
+              setEmail("");
+              setMatchDay("");
+              setTrainingDays("");
+              setLegsStatus("");
+              setTeammateCode("");
+              setEmailReminder(true);
+              setReportData(null);
+            }}
+            className="block mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
+          >
+            Submit another report
+          </button>
         </div>
       </main>
     );

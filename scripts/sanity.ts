@@ -7,6 +7,9 @@ interface ApiResponse {
   source?: string;
   daysRemaining?: number;
   followupScheduled?: boolean;
+  statusLine?: string;
+  planBullets?: string[];
+  matchDayCue?: string;
   error?: string;
 }
 
@@ -44,12 +47,15 @@ function check(label: string, condition: boolean, detail?: string) {
 async function run() {
   console.log(`\nSanity tests — email: ${EMAIL}\n`);
 
-  // A) Public first report — should succeed
+  // A) Public first report — should succeed with plan
   console.log("A) Public first report");
   const a = await post(report());
   check("status 200", a.status === 200, `got ${a.status}`);
   check("ok=true", a.data.ok === true, `got ${a.data.ok}`);
   check('source="public"', a.data.source === "public", `got ${a.data.source}`);
+  check("statusLine is string", typeof a.data.statusLine === "string", `got ${typeof a.data.statusLine}`);
+  check("planBullets is array", Array.isArray(a.data.planBullets), `got ${typeof a.data.planBullets}`);
+  check("matchDayCue is string", typeof a.data.matchDayCue === "string", `got ${typeof a.data.matchDayCue}`);
 
   // B) Public second report same email — should be rate-limited
   console.log("\nB) Public duplicate (rate-limit)");

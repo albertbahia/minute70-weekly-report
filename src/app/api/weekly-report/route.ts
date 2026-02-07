@@ -16,6 +16,56 @@ interface ReportBody {
 const VALID_MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const VALID_LEGS = ["Fresh", "Medium", "Heavy", "Tweaky"];
 
+function generatePlan(legsStatus: string, trainingDays: number, matchDay: string) {
+  const STATUS_LINES: Record<string, string> = {
+    Fresh: "Legs feeling good — time to build on that.",
+    Medium: "Solid base this week. A smart taper will sharpen you up.",
+    Heavy: "Legs are loaded. This week is about recovery, not volume.",
+    Tweaky: "Something's off — protect it now so you're available on match day.",
+  };
+
+  const PLAN_BULLETS: Record<string, string[]> = {
+    Fresh: [
+      "2 moderate sessions (tempo runs or ball work) early in the week",
+      "1 short high-intensity burst (sprints or small-sided game) mid-week",
+      "Rest or light walk the day before match day",
+    ],
+    Medium: [
+      "1 moderate session early in the week to maintain rhythm",
+      "1 light recovery session (yoga, pool, or easy jog) mid-week",
+      "Full rest day before match day — trust the taper",
+    ],
+    Heavy: [
+      "Active recovery only — walks, stretching, foam rolling",
+      "1 light technical session (passing, touch drills) if legs allow",
+      "Prioritize sleep and hydration over any training volume",
+    ],
+    Tweaky: [
+      "Skip all high-impact training until discomfort clears",
+      "Light mobility work and targeted stretching daily",
+      "If pain persists beyond 48 hours, see a physio before match day",
+    ],
+  };
+
+  const statusLine = STATUS_LINES[legsStatus] ?? "Plan generated.";
+  const planBullets = PLAN_BULLETS[legsStatus] ?? ["Follow your usual routine."];
+
+  const daysUntilMatch = (() => {
+    const dayIndex = VALID_MATCH_DAYS.indexOf(matchDay);
+    const today = new Date().getDay(); // 0=Sun
+    const matchDayIndex = (dayIndex + 1) % 7; // convert Mon=0 to Sun-based
+    const diff = (matchDayIndex - today + 7) % 7;
+    return diff === 0 ? 7 : diff;
+  })();
+
+  const matchDayCue =
+    daysUntilMatch <= 2
+      ? `Match day is ${matchDay} — ${daysUntilMatch === 1 ? "tomorrow" : "in 2 days"}. Lock in rest and hydration.`
+      : `Match day is ${matchDay} (${daysUntilMatch} days out). You have time to train smart this week.`;
+
+  return { statusLine, planBullets, matchDayCue };
+}
+
 export async function POST(request: Request) {
   try {
     const body: ReportBody = await request.json();
@@ -147,10 +197,15 @@ export async function POST(request: Request) {
     const source = isTeammate ? "teammate" : "public";
     console.log(`[report] saved for ${email.toLowerCase()} — source=${source}`);
 
+    const plan = generatePlan(legsStatus, trainingDays, matchDay);
+
     return NextResponse.json({
       ok: true,
       source,
       followupScheduled: followupCreated,
+      statusLine: plan.statusLine,
+      planBullets: plan.planBullets,
+      matchDayCue: plan.matchDayCue,
     });
   } catch (err) {
     if (err instanceof SyntaxError) {
