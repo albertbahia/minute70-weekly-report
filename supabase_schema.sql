@@ -1,12 +1,15 @@
 -- Weekly Report Requests — logs every successful submission
 create table if not exists weekly_report_requests (
-  id            uuid primary key default gen_random_uuid(),
-  email         text not null,
-  match_day     text not null,
-  training_days smallint not null,
-  legs_status   text not null,
-  teammate_code text,
-  created_at    timestamptz not null default now()
+  id                     uuid primary key default gen_random_uuid(),
+  email                  text not null,
+  match_day              text not null,
+  weekly_load            smallint not null,
+  legs_status            text not null,
+  tissue_focus           text not null,
+  include_speed_exposure boolean not null default false,
+  recovery_mode          text not null default 'Walk',
+  teammate_code          text,
+  created_at             timestamptz not null default now()
 );
 
 -- Index for the 7-day rate-limit lookup

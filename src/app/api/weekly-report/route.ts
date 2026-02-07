@@ -7,16 +7,28 @@ const RATE_LIMIT_DAYS = 7;
 interface ReportBody {
   email: string;
   matchDay: string;
-  trainingDays: number;
+  weeklyLoad: number;
   legsStatus: string;
+  tissueFocus: string;
+  includeSpeedExposure: boolean;
+  recoveryMode: string;
   teammateCode?: string;
   emailReminder?: boolean;
 }
 
 const VALID_MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const VALID_LEGS = ["Fresh", "Medium", "Heavy", "Tweaky"];
+const VALID_TISSUE = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Flexors", "Ankles"];
+const VALID_RECOVERY = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"];
 
-function generatePlan(legsStatus: string, trainingDays: number, matchDay: string) {
+function generatePlan(
+  legsStatus: string,
+  weeklyLoad: number,
+  matchDay: string,
+  tissueFocus: string,
+  includeSpeedExposure: boolean,
+  recoveryMode: string,
+) {
   const STATUS_LINES: Record<string, string> = {
     Fresh: "Legs feeling good — time to build on that.",
     Medium: "Solid base this week. A smart taper will sharpen you up.",
@@ -24,7 +36,7 @@ function generatePlan(legsStatus: string, trainingDays: number, matchDay: string
     Tweaky: "Something's off — protect it now so you're available on match day.",
   };
 
-  const PLAN_BULLETS: Record<string, string[]> = {
+  const BASE_BULLETS: Record<string, string[]> = {
     Fresh: [
       "2 moderate sessions (tempo runs or ball work) early in the week",
       "1 short high-intensity burst (sprints or small-sided game) mid-week",
@@ -32,7 +44,7 @@ function generatePlan(legsStatus: string, trainingDays: number, matchDay: string
     ],
     Medium: [
       "1 moderate session early in the week to maintain rhythm",
-      "1 light recovery session (yoga, pool, or easy jog) mid-week",
+      "1 light recovery session mid-week",
       "Full rest day before match day — trust the taper",
     ],
     Heavy: [
@@ -48,12 +60,34 @@ function generatePlan(legsStatus: string, trainingDays: number, matchDay: string
   };
 
   const statusLine = STATUS_LINES[legsStatus] ?? "Plan generated.";
-  const planBullets = PLAN_BULLETS[legsStatus] ?? ["Follow your usual routine."];
+  const planBullets = [...(BASE_BULLETS[legsStatus] ?? ["Follow your usual routine."])];
+
+  // Enrich with tissue focus
+  if (tissueFocus && legsStatus !== "Tweaky") {
+    planBullets.push(`Add targeted ${tissueFocus.toLowerCase()} work (mobility + activation) before sessions`);
+  } else if (tissueFocus && legsStatus === "Tweaky") {
+    planBullets.push(`Gentle ${tissueFocus.toLowerCase()} stretching only — no loaded exercises`);
+  }
+
+  // Enrich with speed exposure
+  if (includeSpeedExposure && (legsStatus === "Fresh" || legsStatus === "Medium")) {
+    planBullets.push("Include 4–6 short sprints (10–20m) at 85–90% effort mid-week");
+  } else if (includeSpeedExposure && legsStatus === "Heavy") {
+    planBullets.push("Delay speed work until legs feel lighter — walk-throughs only");
+  }
+
+  // Enrich with recovery mode
+  const recoveryLower = recoveryMode.toLowerCase();
+  if (recoveryMode === "Full Rest") {
+    planBullets.push("Recovery day = full rest — no training, no cross-training");
+  } else {
+    planBullets.push(`Recovery session: ${recoveryLower} for 20–30 min on off days`);
+  }
 
   const daysUntilMatch = (() => {
     const dayIndex = VALID_MATCH_DAYS.indexOf(matchDay);
     const today = new Date().getDay(); // 0=Sun
-    const matchDayIndex = (dayIndex + 1) % 7; // convert Mon=0 to Sun-based
+    const matchDayIndex = (dayIndex + 1) % 7;
     const diff = (matchDayIndex - today + 7) % 7;
     return diff === 0 ? 7 : diff;
   })();
@@ -71,11 +105,14 @@ export async function POST(request: Request) {
     const body: ReportBody = await request.json();
 
     // --- Validation ---
-    const { email, matchDay, trainingDays, legsStatus, teammateCode, emailReminder } = body;
+    const {
+      email, matchDay, weeklyLoad, legsStatus, tissueFocus,
+      includeSpeedExposure, recoveryMode, teammateCode, emailReminder,
+    } = body;
 
-    if (!email || !matchDay || trainingDays === undefined || !legsStatus) {
+    if (!email || !matchDay || weeklyLoad === undefined || !legsStatus || !tissueFocus || !recoveryMode) {
       return NextResponse.json(
-        { ok: false, reason: "validation", error: "Email, match day, training days, and legs status are required." },
+        { ok: false, reason: "validation", error: "All required fields must be filled." },
         { status: 400 }
       );
     }
@@ -95,9 +132,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (typeof trainingDays !== "number" || trainingDays < 0 || trainingDays > 7) {
+    if (typeof weeklyLoad !== "number" || weeklyLoad < 0 || weeklyLoad > 7) {
       return NextResponse.json(
-        { ok: false, reason: "validation", error: "Training days must be 0–7." },
+        { ok: false, reason: "validation", error: "Weekly load must be 0–7." },
         { status: 400 }
       );
     }
@@ -105,6 +142,20 @@ export async function POST(request: Request) {
     if (!VALID_LEGS.includes(legsStatus)) {
       return NextResponse.json(
         { ok: false, reason: "validation", error: "Invalid legs status." },
+        { status: 400 }
+      );
+    }
+
+    if (!VALID_TISSUE.includes(tissueFocus)) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid tissue focus." },
+        { status: 400 }
+      );
+    }
+
+    if (!VALID_RECOVERY.includes(recoveryMode)) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid recovery mode." },
         { status: 400 }
       );
     }
@@ -157,8 +208,11 @@ export async function POST(request: Request) {
       .insert({
         email: email.toLowerCase(),
         match_day: matchDay,
-        training_days: trainingDays,
+        weekly_load: weeklyLoad,
         legs_status: legsStatus,
+        tissue_focus: tissueFocus,
+        include_speed_exposure: includeSpeedExposure,
+        recovery_mode: recoveryMode,
         teammate_code: isTeammate ? TEAMMATE_CODE : null,
       })
       .select("id")
@@ -187,7 +241,6 @@ export async function POST(request: Request) {
 
       if (followupError) {
         console.error("Follow-up insert failed:", followupError);
-        // Non-fatal: report was still saved
       } else {
         followupCreated = true;
         console.log(`[followup] scheduled for ${email.toLowerCase()} — send_at=${sendAt}`);
@@ -197,7 +250,7 @@ export async function POST(request: Request) {
     const source = isTeammate ? "teammate" : "public";
     console.log(`[report] saved for ${email.toLowerCase()} — source=${source}`);
 
-    const plan = generatePlan(legsStatus, trainingDays, matchDay);
+    const plan = generatePlan(legsStatus, weeklyLoad, matchDay, tissueFocus, includeSpeedExposure, recoveryMode);
 
     return NextResponse.json({
       ok: true,

@@ -1,39 +1,94 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 
-type Status = "idle" | "submitting" | "success" | "error";
-
-interface ReportData {
-  source: string;
+interface ReportResponse {
+  ok: boolean;
+  source: "public" | "teammate";
+  followupScheduled: boolean;
   statusLine: string;
   planBullets: string[];
   matchDayCue: string;
-  followupScheduled: boolean;
+  reason?: string;
+  daysRemaining?: number;
+  error?: string;
 }
 
 const MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const TRAINING_DAYS_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7"];
+const WEEKLY_LOAD_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7"];
 const LEGS_OPTIONS = ["Fresh", "Medium", "Heavy", "Tweaky"] as const;
+const TISSUE_FOCUS_OPTIONS = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Flexors", "Ankles"] as const;
+const RECOVERY_MODE_OPTIONS = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"] as const;
+
+const LS_KEY = "minute70_recovery_mode";
+
+function getStoredRecoveryMode(): string {
+  if (typeof window === "undefined") return "Walk";
+  try {
+    return localStorage.getItem(LS_KEY) || "Walk";
+  } catch {
+    return "Walk";
+  }
+}
 
 export default function WeeklyReportPage() {
+  // Step state
+  const [step, setStep] = useState<1 | 2>(1);
+
+  // Step 1
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Step 2
   const [matchDay, setMatchDay] = useState("");
-  const [trainingDays, setTrainingDays] = useState("");
+  const [weeklyLoad, setWeeklyLoad] = useState("");
   const [legsStatus, setLegsStatus] = useState("");
+  const [tissueFocus, setTissueFocus] = useState("");
+  const [includeSpeedExposure, setIncludeSpeedExposure] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState("Walk");
   const [teammateCode, setTeammateCode] = useState("");
   const [emailReminder, setEmailReminder] = useState(true);
 
-  const [status, setStatus] = useState<Status>("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [report, setReport] = useState<ReportResponse | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const teammateValidated = teammateCode === "ELMPARC2FREE";
 
+  // Load recovery_mode from localStorage on mount
+  useEffect(() => {
+    setRecoveryMode(getStoredRecoveryMode());
+  }, []);
+
+  // Persist recovery_mode to localStorage on change
+  function handleRecoveryModeChange(value: string) {
+    setRecoveryMode(value);
+    try {
+      localStorage.setItem(LS_KEY, value);
+    } catch { /* localStorage unavailable */ }
+  }
+
+  function handleContinue(e: FormEvent) {
+    e.preventDefault();
+    setEmailError(null);
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setEmailError("Email is required.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      setEmailError("Please enter a valid email.");
+      return;
+    }
+    setEmail(trimmed);
+    setStep(2);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setStatus("submitting");
-    setErrorMsg("");
+    setLoading(true);
+    setErrorMsg(null);
 
     try {
       const res = await fetch("/api/weekly-report", {
@@ -42,40 +97,34 @@ export default function WeeklyReportPage() {
         body: JSON.stringify({
           email,
           matchDay,
-          trainingDays: Number(trainingDays),
+          weeklyLoad: Number(weeklyLoad),
           legsStatus,
+          tissueFocus,
+          includeSpeedExposure,
+          recoveryMode,
           teammateCode: teammateCode || undefined,
           emailReminder: teammateValidated ? emailReminder : undefined,
         }),
       });
 
-      const data = await res.json();
+      const json = await res.json();
 
-      if (!data.ok) {
-        if (data.reason === "limit") {
-          setStatus("error");
+      if (json.ok === true) {
+        setReport(json);
+      } else {
+        if (json.reason === "limit") {
           setErrorMsg(
-            `1 report per week. Try again in ${data.daysRemaining ?? "a few"} day${data.daysRemaining === 1 ? "" : "s"}.`
+            `1 report per week. Try again in ${json.daysRemaining ?? "a few"} day${json.daysRemaining === 1 ? "" : "s"}.`
           );
         } else {
-          setStatus("error");
-          setErrorMsg(data.error || "Something went wrong.");
+          setErrorMsg(json.error ?? "Something went wrong.");
         }
-        return;
       }
-
-      setReportData({
-        source: data.source,
-        statusLine: data.statusLine,
-        planBullets: data.planBullets,
-        matchDayCue: data.matchDayCue,
-        followupScheduled: data.followupScheduled,
-      });
-      setStatus("success");
     } catch {
-      setStatus("error");
       setErrorMsg("Network error. Please try again.");
     }
+
+    setLoading(false);
   }
 
   const inputClass =
@@ -84,7 +133,8 @@ export default function WeeklyReportPage() {
   const selectClass =
     "w-full rounded-xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3.5 text-base text-[var(--foreground)] border-l-4 border-l-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all duration-200 appearance-none cursor-pointer";
 
-  if (status === "success" && reportData) {
+  // --- Report view ---
+  if (report !== null) {
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg space-y-6">
@@ -92,25 +142,23 @@ export default function WeeklyReportPage() {
             Your Weekly Report
           </h1>
 
-          {reportData.source === "teammate" && (
+          {report.source === "teammate" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium text-center">
               ELMPARC2 Beta Tester unlocked ✅
             </div>
           )}
 
           <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--card-shadow)] space-y-5">
-            {/* Status Line */}
             <p className="text-lg font-medium text-[var(--foreground)]">
-              {reportData.statusLine}
+              {report.statusLine}
             </p>
 
-            {/* 3-Bullet Plan */}
             <div>
               <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">
                 This week&apos;s plan
               </h3>
               <ul className="space-y-2.5">
-                {reportData.planBullets.map((bullet, i) => (
+                {report.planBullets.map((bullet, i) => (
                   <li key={i} className="flex gap-3 text-[var(--foreground)]">
                     <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
                     <span className="text-base">{bullet}</span>
@@ -119,15 +167,13 @@ export default function WeeklyReportPage() {
               </ul>
             </div>
 
-            {/* Match-Day Cue */}
             <div className="rounded-xl bg-[var(--input-bg)] border border-[var(--border)] border-l-4 border-l-[var(--primary)] px-4 py-3">
               <p className="text-sm text-[var(--foreground)]">
-                {reportData.matchDayCue}
+                {report.matchDayCue}
               </p>
             </div>
           </div>
 
-          {/* CTA */}
           <a
             href="https://minute70.com#waitlist"
             target="_blank"
@@ -138,31 +184,67 @@ export default function WeeklyReportPage() {
           </a>
 
           <button
-            onClick={() => {
-              setStatus("idle");
-              setEmail("");
-              setMatchDay("");
-              setTrainingDays("");
-              setLegsStatus("");
-              setTeammateCode("");
-              setEmailReminder(true);
-              setReportData(null);
-            }}
+            onClick={() => setReport(null)}
             className="block mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
           >
-            Submit another report
+            Generate another report
           </button>
         </div>
       </main>
     );
   }
 
+  // --- Step 1: Email gate ---
+  if (step === 1) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-lg">
+          <h1 className="text-3xl font-bold text-[var(--foreground)] text-center mb-10">
+            Minute70 Weekly Report
+          </h1>
+
+          {emailError && (
+            <div className="mb-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm">
+              {emailError}
+            </div>
+          )}
+
+          <form onSubmit={handleContinue} className="space-y-7">
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+                Email <span className="text-[var(--destructive)]">*</span>
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className={inputClass}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:brightness-110 transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
+            >
+              Continue
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
+  // --- Step 2: Report form ---
   return (
     <main className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
-        <h1 className="text-3xl font-bold text-[var(--foreground)] text-center mb-10">
+        <h1 className="text-3xl font-bold text-[var(--foreground)] text-center mb-2">
           Minute70 Weekly Report
         </h1>
+        <p className="text-sm text-[var(--muted)] text-center mb-8">{email}</p>
 
         {teammateValidated && (
           <div className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium">
@@ -170,23 +252,13 @@ export default function WeeklyReportPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-7">
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-              Email <span className="text-[var(--destructive)]">*</span>
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className={inputClass}
-            />
+        {errorMsg && (
+          <div className="mb-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm">
+            {errorMsg}
           </div>
+        )}
 
+        <form onSubmit={handleSubmit} className="space-y-7">
           {/* Match Day */}
           <div>
             <label htmlFor="matchDay" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
@@ -211,21 +283,21 @@ export default function WeeklyReportPage() {
             </div>
           </div>
 
-          {/* Training Days Last 7 */}
+          {/* Weekly Load */}
           <div>
-            <label htmlFor="trainingDays" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-              Training Days Last 7 <span className="text-[var(--destructive)]">*</span>
+            <label htmlFor="weeklyLoad" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              Weekly Load (sessions) <span className="text-[var(--destructive)]">*</span>
             </label>
             <div className="relative">
               <select
-                id="trainingDays"
+                id="weeklyLoad"
                 required
-                value={trainingDays}
-                onChange={(e) => setTrainingDays(e.target.value)}
-                className={`${selectClass} ${!trainingDays ? "text-[var(--muted)]" : ""}`}
+                value={weeklyLoad}
+                onChange={(e) => setWeeklyLoad(e.target.value)}
+                className={`${selectClass} ${!weeklyLoad ? "text-[var(--muted)]" : ""}`}
               >
-                <option value="" disabled>Select training days</option>
-                {TRAINING_DAYS_OPTIONS.map((n) => (
+                <option value="" disabled>Select sessions this week</option>
+                {WEEKLY_LOAD_OPTIONS.map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
@@ -272,6 +344,73 @@ export default function WeeklyReportPage() {
             </div>
           </div>
 
+          {/* Tissue Focus */}
+          <div>
+            <label htmlFor="tissueFocus" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              Tissue Focus <span className="text-[var(--destructive)]">*</span>
+            </label>
+            <div className="relative">
+              <select
+                id="tissueFocus"
+                required
+                value={tissueFocus}
+                onChange={(e) => setTissueFocus(e.target.value)}
+                className={`${selectClass} ${!tissueFocus ? "text-[var(--muted)]" : ""}`}
+              >
+                <option value="" disabled>Select tissue focus</option>
+                {TISSUE_FOCUS_OPTIONS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Include Speed Exposure */}
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <span
+              className={`relative flex-shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
+                includeSpeedExposure ? "bg-[var(--primary)]" : "bg-[var(--border)]"
+              }`}
+              onClick={() => setIncludeSpeedExposure(!includeSpeedExposure)}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                  includeSpeedExposure ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </span>
+            <span className="text-sm font-semibold text-[var(--foreground)]">
+              Include Speed Exposure
+            </span>
+          </label>
+
+          {/* Recovery Mode */}
+          <div>
+            <label htmlFor="recoveryMode" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              Recovery Mode <span className="text-[var(--destructive)]">*</span>
+            </label>
+            <div className="relative">
+              <select
+                id="recoveryMode"
+                required
+                value={recoveryMode}
+                onChange={(e) => handleRecoveryModeChange(e.target.value)}
+                className={selectClass}
+              >
+                {RECOVERY_MODE_OPTIONS.map((mode) => (
+                  <option key={mode} value={mode}>{mode}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <p className="mt-1.5 text-xs text-[var(--muted)]">We&apos;ll remember this on this device.</p>
+          </div>
+
           {/* Teammate Code */}
           <div>
             <label htmlFor="teammateCode" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
@@ -302,20 +441,13 @@ export default function WeeklyReportPage() {
             </label>
           )}
 
-          {/* Error */}
-          {status === "error" && (
-            <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm">
-              {errorMsg}
-            </div>
-          )}
-
           {/* Submit */}
           <button
             type="submit"
-            disabled={status === "submitting"}
+            disabled={loading}
             className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:brightness-110 transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {status === "submitting" ? "Generating..." : "Generate my report"}
+            {loading ? "Generating..." : "Generate my report"}
           </button>
         </form>
       </div>

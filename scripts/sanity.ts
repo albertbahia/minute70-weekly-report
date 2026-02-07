@@ -26,8 +26,11 @@ async function post(body: Record<string, unknown>): Promise<{ status: number; da
 const report = (overrides: Record<string, unknown> = {}) => ({
   email: EMAIL,
   matchDay: "Saturday",
-  trainingDays: 3,
+  weeklyLoad: 3,
   legsStatus: "Fresh",
+  tissueFocus: "Quads",
+  includeSpeedExposure: false,
+  recoveryMode: "Walk",
   ...overrides,
 });
 
@@ -55,6 +58,7 @@ async function run() {
   check('source="public"', a.data.source === "public", `got ${a.data.source}`);
   check("statusLine is string", typeof a.data.statusLine === "string", `got ${typeof a.data.statusLine}`);
   check("planBullets is array", Array.isArray(a.data.planBullets), `got ${typeof a.data.planBullets}`);
+  check("planBullets.length >= 3", (a.data.planBullets?.length ?? 0) >= 3, `got ${a.data.planBullets?.length}`);
   check("matchDayCue is string", typeof a.data.matchDayCue === "string", `got ${typeof a.data.matchDayCue}`);
 
   // B) Public second report same email — should be rate-limited
@@ -78,6 +82,15 @@ async function run() {
   check("status 200", d.status === 200, `got ${d.status}`);
   check("ok=true", d.data.ok === true, `got ${d.data.ok}`);
   check("followupScheduled=true", d.data.followupScheduled === true, `got ${d.data.followupScheduled}`);
+
+  // E) Speed exposure enriches plan
+  console.log("\nE) Speed exposure adds bullet");
+  const e2 = await post(report({
+    email: `sanity-speed-${Date.now()}@test.local`,
+    includeSpeedExposure: true,
+  }));
+  check("status 200", e2.status === 200, `got ${e2.status}`);
+  check("has speed bullet", (e2.data.planBullets ?? []).some(b => b.toLowerCase().includes("sprint")), "no sprint bullet found");
 
   // Summary
   console.log(`\n${passed} passed, ${failed} failed\n`);
