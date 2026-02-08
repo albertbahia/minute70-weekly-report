@@ -475,7 +475,7 @@ export default function WeeklyReportPage() {
               type="text"
               value={teammateCode}
               onChange={(e) => setTeammateCode(e.target.value)}
-              placeholder="ELMPARC2FREE"
+              placeholder="Enter code here"
               className={inputClass}
             />
             <p className="mt-1.5 text-xs text-[var(--muted)]">If you were given a code, enter it here.</p>
