@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
+import { getLateWindow } from "@/lib/late-window";
+
+const HALF_LENGTH_OPTIONS = [20, 25, 30, 35, 40, 45] as const;
+const DEFAULT_HALF = 25;
 
 interface ReportResponse {
   ok: boolean;
@@ -46,8 +50,11 @@ export default function WeeklyReportPage() {
   const [tissueFocus, setTissueFocus] = useState("");
   const [includeSpeedExposure, setIncludeSpeedExposure] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState("Walk");
+  const [halfLength, setHalfLength] = useState(DEFAULT_HALF);
   const [teammateCode, setTeammateCode] = useState("");
   const [emailReminder, setEmailReminder] = useState(true);
+
+  const lateWindow = getLateWindow(halfLength);
 
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -102,6 +109,7 @@ export default function WeeklyReportPage() {
           tissueFocus,
           includeSpeedExposure,
           recoveryMode,
+          halfLengthMinutes: halfLength,
           teammateCode: teammateCode || undefined,
           emailReminder: teammateValidated ? emailReminder : undefined,
         }),
@@ -201,7 +209,7 @@ export default function WeeklyReportPage() {
             Minute70 Weekly Report
           </h1>
           <p className="text-sm text-[var(--muted)] text-center mb-10">
-            30 seconds → your week plan for strong legs in the final 20 minutes.
+            30 seconds → your week plan for strong legs in the final {getLateWindow(DEFAULT_HALF)} minutes.
           </p>
 
           {emailError && (
@@ -343,6 +351,32 @@ export default function WeeklyReportPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
+          </div>
+
+          {/* League Half Length */}
+          <div>
+            <label htmlFor="halfLength" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+              League half length (minutes) <span className="text-[var(--destructive)]">*</span>
+            </label>
+            <div className="relative">
+              <select
+                id="halfLength"
+                required
+                value={halfLength}
+                onChange={(e) => setHalfLength(Number(e.target.value))}
+                className={selectClass}
+              >
+                {HALF_LENGTH_OPTIONS.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <p className="mt-1.5 text-xs text-[var(--muted)]">
+              Late window = last {lateWindow} minutes
+            </p>
           </div>
 
           {/* Weekly Load */}

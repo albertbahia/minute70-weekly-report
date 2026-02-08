@@ -40,6 +40,7 @@ const report = (overrides: Record<string, unknown> = {}) => ({
   tissueFocus: "Quads",
   includeSpeedExposure: false,
   recoveryMode: "Walk",
+  halfLengthMinutes: 25,
   ...overrides,
 });
 
