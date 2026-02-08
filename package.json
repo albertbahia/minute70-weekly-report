@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sanity": "tsx scripts/sanity.ts"
+    "sanity": "tsx scripts/sanity.ts && tsx scripts/sanity-rate-limit-dev.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
