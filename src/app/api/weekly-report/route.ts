@@ -12,9 +12,12 @@ interface ReportBody {
   tissueFocus: string;
   includeSpeedExposure: boolean;
   recoveryMode: string;
+  halfLengthMinutes?: number;
   teammateCode?: string;
   emailReminder?: boolean;
 }
+
+const VALID_HALF_LENGTHS = [20, 25, 30, 35, 40, 45];
 
 const VALID_MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const VALID_LEGS = ["Fresh", "Medium", "Heavy", "Tweaky"];
@@ -107,8 +110,10 @@ export async function POST(request: Request) {
     // --- Validation ---
     const {
       email, matchDay, weeklyLoad, legsStatus, tissueFocus,
-      includeSpeedExposure, recoveryMode, teammateCode, emailReminder,
+      includeSpeedExposure, recoveryMode, halfLengthMinutes, teammateCode, emailReminder,
     } = body;
+
+    const halfLength = halfLengthMinutes ?? 25;
 
     if (!email || !matchDay || weeklyLoad === undefined || !legsStatus || !tissueFocus || !recoveryMode) {
       return NextResponse.json(
@@ -156,6 +161,13 @@ export async function POST(request: Request) {
     if (!VALID_RECOVERY.includes(recoveryMode)) {
       return NextResponse.json(
         { ok: false, reason: "validation", error: "Invalid recovery mode." },
+        { status: 400 }
+      );
+    }
+
+    if (!VALID_HALF_LENGTHS.includes(halfLength)) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid half length." },
         { status: 400 }
       );
     }
@@ -220,6 +232,7 @@ export async function POST(request: Request) {
         tissue_focus: tissueFocus,
         include_speed_exposure: includeSpeedExposure,
         recovery_mode: recoveryMode,
+        half_length_minutes: halfLength,
         teammate_code: isTeammate ? TEAMMATE_CODE : null,
         tier: isPaid ? "paid" : "free",
       })

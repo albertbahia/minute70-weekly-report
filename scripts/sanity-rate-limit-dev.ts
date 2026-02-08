@@ -77,6 +77,7 @@ function reportBody(email: string) {
     tissueFocus: "Quads",
     includeSpeedExposure: false,
     recoveryMode: "Walk",
+    halfLengthMinutes: 25,
   };
 }
 

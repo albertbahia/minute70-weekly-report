@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { getLateWindow } from "@/lib/late-window";
+
+const DEFAULT_HALF = 25;
+const DEFAULT_LATE = getLateWindow(DEFAULT_HALF);
 
 const FAQ = [
   {
@@ -15,11 +19,11 @@ const FAQ = [
   },
   {
     q: "Is it really free?",
-    a: "Yes \u2014 you get 1 Weekly Report per week for free. If something changes mid-week (extra match, soreness, schedule shift), you can unlock additional reports in the same week for a small per-report fee. We\u2019ll also offer a membership option later for players who want more frequent updates.",
+    a: `Yes \u2014 you get 1 Weekly Report per week for free. The report is personalized to your match day and your league half length (default ${DEFAULT_HALF}-minute halves). If something changes mid-week (extra match, soreness, schedule shift), you can unlock additional reports in the same week for a small per-report fee. We\u2019ll also offer a membership option later for players who want more frequent updates.`,
   },
   {
     q: "Who is this for?",
-    a: "Adult recreational soccer players who want to feel strong in the last 20 minutes of a match\u2014without a full-time coach.",
+    a: `Adult recreational soccer players who want to feel strong in the last ${DEFAULT_LATE} minutes of a match\u2014without a full-time coach.`,
   },
 ];
 
@@ -48,7 +52,7 @@ export default function Home() {
             Late-Game Legs, Engineered
           </p>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[var(--foreground)] leading-[1.1]">
-            Finish strong in the final&nbsp;20&nbsp;minutes
+            Finish strong in the final&nbsp;{DEFAULT_LATE}&nbsp;minutes
           </h1>
           <p className="text-lg font-light text-[var(--muted)] leading-relaxed max-w-lg mx-auto">
             A free weekly plan built around your match day. Answer a few
@@ -64,6 +68,9 @@ export default function Home() {
           </div>
           <p className="text-sm font-light text-[var(--muted)]">
             Free &middot; No account needed &middot; 30 seconds
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            Default league half length: {DEFAULT_HALF} minutes &middot; Late window = last {DEFAULT_LATE} minutes
           </p>
         </section>
 
