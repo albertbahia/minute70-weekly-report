@@ -1,10 +1,13 @@
 const BASE = "http://localhost:3000/api/weekly-report";
+const WAITLIST_BASE = "http://localhost:3000/api/waitlist";
 const EMAIL = `sanity-${Date.now()}@test.local`;
+const WAITLIST_EMAIL = `sanity-wl-${Date.now()}@test.local`;
 
 interface ApiResponse {
   ok: boolean;
   reason?: string;
   source?: string;
+  status?: string;
   daysRemaining?: number;
   followupScheduled?: boolean;
   statusLine?: string;
@@ -13,14 +16,18 @@ interface ApiResponse {
   error?: string;
 }
 
-async function post(body: Record<string, unknown>): Promise<{ status: number; data: ApiResponse }> {
-  const res = await fetch(BASE, {
+async function postTo(url: string, body: Record<string, unknown>): Promise<{ status: number; data: ApiResponse }> {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const data: ApiResponse = await res.json();
   return { status: res.status, data };
+}
+
+async function post(body: Record<string, unknown>): Promise<{ status: number; data: ApiResponse }> {
+  return postTo(BASE, body);
 }
 
 const report = (overrides: Record<string, unknown> = {}) => ({
@@ -91,6 +98,32 @@ async function run() {
   }));
   check("status 200", e2.status === 200, `got ${e2.status}`);
   check("has speed bullet", (e2.data.planBullets ?? []).some(b => b.toLowerCase().includes("sprint")), "no sprint bullet found");
+
+  // F) Waitlist — new signup
+  console.log("\nF) Waitlist new signup");
+  const f = await postTo(WAITLIST_BASE, { email: WAITLIST_EMAIL });
+  check("status 200", f.status === 200, `got ${f.status}`);
+  check("ok=true", f.data.ok === true, `got ${f.data.ok}`);
+  check('status="created"', f.data.status === "created", `got ${f.data.status}`);
+
+  // G) Waitlist — duplicate email returns exists
+  console.log("\nG) Waitlist duplicate (exists)");
+  const g = await postTo(WAITLIST_BASE, { email: WAITLIST_EMAIL });
+  check("status 200", g.status === 200, `got ${g.status}`);
+  check("ok=true", g.data.ok === true, `got ${g.data.ok}`);
+  check('status="exists"', g.data.status === "exists", `got ${g.data.status}`);
+
+  // H) Waitlist — missing email rejected
+  console.log("\nH) Waitlist missing email");
+  const h = await postTo(WAITLIST_BASE, {});
+  check("status 400", h.status === 400, `got ${h.status}`);
+  check("ok=false", h.data.ok === false, `got ${h.data.ok}`);
+
+  // I) Waitlist — invalid email rejected
+  console.log("\nI) Waitlist invalid email");
+  const i = await postTo(WAITLIST_BASE, { email: "not-an-email" });
+  check("status 400", i.status === 400, `got ${i.status}`);
+  check("ok=false", i.data.ok === false, `got ${i.data.ok}`);
 
   // Summary
   console.log(`\n${passed} passed, ${failed} failed\n`);
