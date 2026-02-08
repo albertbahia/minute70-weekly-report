@@ -1,6 +1,8 @@
 const BASE = "http://localhost:3000/api/weekly-report";
 const WAITLIST_BASE = "http://localhost:3000/api/waitlist";
 const EMAIL = `sanity-${Date.now()}@test.local`;
+const TEAMMATE_EMAIL_C = `sanity-tm-${Date.now()}@test.local`;
+const TEAMMATE_EMAIL_D = `sanity-tmfu-${Date.now()}@test.local`;
 const WAITLIST_EMAIL = `sanity-wl-${Date.now()}@test.local`;
 
 interface ApiResponse {
@@ -76,16 +78,16 @@ async function run() {
   check('reason="limit"', b.data.reason === "limit", `got ${b.data.reason}`);
   check("daysRemaining is number", typeof b.data.daysRemaining === "number", `got ${b.data.daysRemaining}`);
 
-  // C) Teammate report same email — should bypass limit
+  // C) Teammate report — should succeed (separate email avoids DB trigger clash)
   console.log("\nC) Teammate bypass");
-  const c = await post(report({ teammateCode: "ELMPARC2FREE", emailReminder: false }));
+  const c = await post(report({ email: TEAMMATE_EMAIL_C, teammateCode: "ELMPARC2FREE", emailReminder: false }));
   check("status 200", c.status === 200, `got ${c.status}`);
   check("ok=true", c.data.ok === true, `got ${c.data.ok}`);
   check('source="teammate"', c.data.source === "teammate", `got ${c.data.source}`);
 
   // D) Teammate with followup checkbox
   console.log("\nD) Teammate follow-up scheduled");
-  const d = await post(report({ teammateCode: "ELMPARC2FREE", emailReminder: true }));
+  const d = await post(report({ email: TEAMMATE_EMAIL_D, teammateCode: "ELMPARC2FREE", emailReminder: true }));
   check("status 200", d.status === 200, `got ${d.status}`);
   check("ok=true", d.data.ok === true, `got ${d.data.ok}`);
   check("followupScheduled=true", d.data.followupScheduled === true, `got ${d.data.followupScheduled}`);

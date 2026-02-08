@@ -162,10 +162,17 @@ export async function POST(request: Request) {
 
     const isTeammate = teammateCode === TEAMMATE_CODE;
 
+    // DEV-ONLY: allow x-minute70-tier header to simulate paid tier
+    const devTier =
+      process.env.NODE_ENV !== "production"
+        ? request.headers.get("x-minute70-tier")
+        : null;
+    const isPaid = isTeammate || devTier === "paid";
+
     const supabase = getSupabaseAdmin();
 
-    // --- Rate-limit check (skip for teammates) ---
-    if (!isTeammate) {
+    // --- Rate-limit check (skip for paid / teammates) ---
+    if (!isPaid) {
       const cutoff = new Date(Date.now() - RATE_LIMIT_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
       const { data: recent, error: lookupError } = await supabase
@@ -214,12 +221,57 @@ export async function POST(request: Request) {
         include_speed_exposure: includeSpeedExposure,
         recovery_mode: recoveryMode,
         teammate_code: isTeammate ? TEAMMATE_CODE : null,
+        tier: isPaid ? "paid" : "free",
       })
       .select("id")
       .single();
 
-    if (insertError || !report) {
+    if (insertError) {
+      const errMsg = insertError.message ?? "";
+
+      // DB trigger rate-limit — message starts with "rate_limited:"
+      if (errMsg.includes("rate_limited:")) {
+        const { data: latest } = await supabase
+          .from("weekly_report_requests")
+          .select("created_at")
+          .eq("email", email.toLowerCase())
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        let daysRemaining = 7;
+        if (latest) {
+          const nextAllowed = new Date(
+            new Date(latest.created_at).getTime() + RATE_LIMIT_DAYS * 24 * 60 * 60 * 1000
+          );
+          daysRemaining = Math.max(
+            0,
+            Math.min(7, Math.ceil((nextAllowed.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+          );
+        }
+
+        console.log(`[rate-limit/db] blocked ${email.toLowerCase()} — ${daysRemaining}d remaining`);
+        return NextResponse.json(
+          {
+            ok: false,
+            reason: "limit",
+            source: isPaid ? "teammate" : "public",
+            daysRemaining,
+            error: "You already generated this week's report. Come back next week.",
+          },
+          { status: 429 }
+        );
+      }
+
       console.error("Insert failed:", insertError);
+      return NextResponse.json(
+        { ok: false, reason: "error", error: "Failed to save report." },
+        { status: 500 }
+      );
+    }
+
+    if (!report) {
+      console.error("Insert returned no data");
       return NextResponse.json(
         { ok: false, reason: "error", error: "Failed to save report." },
         { status: 500 }
@@ -247,7 +299,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const source = isTeammate ? "teammate" : "public";
+    const source = isPaid ? "teammate" : "public";
     console.log(`[report] saved for ${email.toLowerCase()} — source=${source}`);
 
     const plan = generatePlan(legsStatus, weeklyLoad, matchDay, tissueFocus, includeSpeedExposure, recoveryMode);
