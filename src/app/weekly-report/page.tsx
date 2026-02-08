@@ -148,7 +148,7 @@ export default function WeeklyReportPage() {
             </div>
           )}
 
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--card-shadow)] space-y-5">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--card-shadow-lg)] space-y-5">
             <p className="text-lg font-medium text-[var(--foreground)]">
               {report.statusLine}
             </p>
@@ -178,7 +178,7 @@ export default function WeeklyReportPage() {
             href="https://minute70.com#waitlist"
             target="_blank"
             rel="noopener noreferrer"
-            className="block w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg text-center hover:brightness-110 transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
+            className="block w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg text-center hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
           >
             Get next week&apos;s report (join waitlist)
           </a>
@@ -281,7 +281,7 @@ export default function WeeklyReportPage() {
 
             <button
               type="submit"
-              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:brightness-110 transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
+              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
             >
               Continue
             </button>

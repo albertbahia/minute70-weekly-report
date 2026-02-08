@@ -9,7 +9,8 @@
   --input-bg: #f5f9f8;
   --muted: #6b8a82;
   --card: #ffffff;
-  --card-shadow: 0 4px 20px -4px rgba(26, 46, 42, 0.08);
+  --card-shadow: 0 1px 3px rgba(26, 46, 42, 0.06), 0 4px 16px -4px rgba(26, 46, 42, 0.1);
+  --card-shadow-lg: 0 1px 3px rgba(26, 46, 42, 0.06), 0 8px 30px -6px rgba(26, 46, 42, 0.14);
   --destructive: #e53e3e;
   --accent: #e87040;
 }
