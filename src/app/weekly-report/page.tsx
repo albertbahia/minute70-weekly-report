@@ -114,7 +114,7 @@ export default function WeeklyReportPage() {
       } else {
         if (json.reason === "limit") {
           setErrorMsg(
-            `1 report per week. Try again in ${json.daysRemaining ?? "a few"} day${json.daysRemaining === 1 ? "" : "s"}.`
+            "You've already generated this week's report. Come back next week."
           );
         } else {
           setErrorMsg(json.error ?? "Something went wrong.");
@@ -144,7 +144,7 @@ export default function WeeklyReportPage() {
 
           {report.source === "teammate" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium text-center">
-              ELMPARC2 Beta unlocked ✅ Unlimited reports (free)
+              ELMPARC2 Beta unlocked ✅
             </div>
           )}
 
@@ -200,7 +200,7 @@ export default function WeeklyReportPage() {
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg">
           <h1 className="text-3xl font-bold text-[var(--foreground)] text-center mb-2">
-            Minute70 Weekly Report (Beta)
+            Minute70 Weekly Report
           </h1>
           <p className="text-sm text-[var(--muted)] text-center mb-10">
             30 seconds → your week plan for strong legs in the final 20 minutes.
@@ -272,10 +272,10 @@ export default function WeeklyReportPage() {
                 className={inputClass}
               />
               <p className="mt-1.5 text-xs text-[var(--muted)]">
-                Public users get 1 report/week. Teammates get unlimited free beta access with a code. Email helps us enforce limits + send an optional 7-day reminder.
+                Enter your email to generate this week&apos;s report and (optionally) get a 7-day reminder.
               </p>
               <p className="mt-1 text-xs text-[var(--muted)] italic">
-                No spam. Not public. Beta tracking only.
+                No spam. Not public.
               </p>
             </div>
 

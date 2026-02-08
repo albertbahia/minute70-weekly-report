@@ -17,16 +17,11 @@ export default function Home() {
           href="/weekly-report"
           className="inline-block w-full sm:w-auto rounded-2xl bg-[var(--primary)] text-white font-semibold px-8 py-4 text-lg hover:brightness-110 transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
         >
-          Get your Weekly Report
+          Get this week&apos;s report
         </Link>
 
         <p className="text-sm text-[var(--muted)]">
-          <Link
-            href="/weekly-report"
-            className="underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
-          >
-            Have a beta code?
-          </Link>
+          One report per week.
         </p>
       </section>
 
@@ -35,15 +30,15 @@ export default function Home() {
         <ul className="space-y-2.5 text-base text-[var(--foreground)]">
           <li className="flex gap-3">
             <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
-            Built for adult rec players.
+            Built for adult rec soccer players.
           </li>
           <li className="flex gap-3">
             <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
-            Public: 1 report/week.
+            Personalized to your match day, legs status, and choices.
           </li>
           <li className="flex gap-3">
             <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
-            Teammates: unlimited free beta access with a code.
+            Takes ~30 seconds.
           </li>
         </ul>
       </section>
@@ -87,7 +82,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="w-full max-w-lg mt-20 pt-6 border-t border-[var(--border)]">
         <p className="text-xs text-[var(--muted)] text-center">
-          No spam. Not public. Beta tracking only.
+          No spam. Just your weekly plan.
         </p>
       </footer>
     </main>
