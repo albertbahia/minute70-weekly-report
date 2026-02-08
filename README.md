@@ -4,8 +4,6 @@ A single-page Next.js app for submitting weekly status reports, backed by Supaba
 
 ## Features
 
-- **Public rate-limiting** — 1 report per email per 7 days
-- **Teammate code** — enter `ELMPARC2FREE` to bypass the rate limit
 - **Follow-up reminders** — teammates can opt-in to a 7-day email reminder (stored in `weekly_report_followups`)
 - **Server-only secrets** — Supabase service-role key never leaves the server
 
