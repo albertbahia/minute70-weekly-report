@@ -175,12 +175,10 @@ export default function WeeklyReportPage() {
           </div>
 
           <a
-            href="https://minute70.com#waitlist"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/waitlist"
             className="block w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg text-center hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
           >
-            Get next week&apos;s report (join waitlist)
+            Join the waitlist
           </a>
 
           <button
@@ -286,6 +284,16 @@ export default function WeeklyReportPage() {
               Continue
             </button>
           </form>
+
+          <p className="mt-6 text-center text-xs text-[var(--muted)]">
+            Want to join the waitlist when Minute70 fully releases?{" "}
+            <a
+              href="/waitlist"
+              className="underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
+            >
+              Join the waitlist
+            </a>
+          </p>
         </div>
       </main>
     );
