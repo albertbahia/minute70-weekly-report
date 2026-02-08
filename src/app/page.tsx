@@ -15,7 +15,7 @@ const FAQ = [
   },
   {
     q: "Is it really free?",
-    a: "Yes. One report per week, no credit card, no account required.",
+    a: "Yes \u2014 you get 1 Weekly Report per week for free. If something changes mid-week (extra match, soreness, schedule shift), you can unlock additional reports in the same week for a small per-report fee. We\u2019ll also offer a membership option later for players who want more frequent updates.",
   },
   {
     q: "Who is this for?",
