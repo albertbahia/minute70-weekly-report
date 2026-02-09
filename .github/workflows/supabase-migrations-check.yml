@@ -1,0 +1,50 @@
+name: Migration Hygiene Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    name: Validate migration files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate migrations
+        run: |
+          # Folder must exist
+          if [ ! -d "supabase/migrations" ]; then
+            echo "ERROR: supabase/migrations/ directory missing"
+            exit 1
+          fi
+
+          # Find migration files (ignore .gitkeep)
+          files=$(find supabase/migrations -name '*.sql' | sort)
+          if [ -z "$files" ]; then
+            echo "No migration files found — OK (empty migrations dir)"
+            exit 0
+          fi
+
+          err=0
+          for f in $files; do
+            base=$(basename "$f")
+            if ! echo "$base" | grep -qE '^[0-9]{12}_.+\.sql$'; then
+              echo "ERROR: Bad filename: $base (expected YYYYMMDDHHMM_description.sql)"
+              err=1
+            fi
+          done
+
+          # Check for duplicate timestamps
+          timestamps=$(echo "$files" | xargs -I{} basename {} | cut -c1-12 | sort)
+          dupes=$(echo "$timestamps" | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "ERROR: Duplicate timestamps: $dupes"
+            err=1
+          fi
+
+          if [ "$err" -eq 1 ]; then exit 1; fi
+          echo "All migrations valid"
