@@ -1,9 +1,18 @@
--- Add tier and half_length_minutes columns to weekly_report_requests
-ALTER TABLE public.weekly_report_requests
-  ADD COLUMN IF NOT EXISTS tier text NOT NULL DEFAULT 'free';
+-- Delta: add tier + half_length_minutes columns and rate-limit trigger
+-- Defensive: skips ALTERs/trigger if table doesn't exist yet
 
-ALTER TABLE public.weekly_report_requests
-  ADD COLUMN IF NOT EXISTS half_length_minutes integer NOT NULL DEFAULT 25;
+DO $$ BEGIN
+  IF to_regclass('public.weekly_report_requests') IS NOT NULL THEN
+    -- Add columns (no-op if baseline already created them)
+    ALTER TABLE public.weekly_report_requests
+      ADD COLUMN IF NOT EXISTS tier text NOT NULL DEFAULT 'free';
+
+    ALTER TABLE public.weekly_report_requests
+      ADD COLUMN IF NOT EXISTS half_length_minutes integer NOT NULL DEFAULT 25;
+  ELSE
+    RAISE NOTICE 'weekly_report_requests does not exist — skipping ALTER';
+  END IF;
+END $$;
 
 -- Rate-limit trigger function: free = 1/week, paid = 3/week
 CREATE OR REPLACE FUNCTION public.enforce_weekly_report_rate_limit()
@@ -38,9 +47,15 @@ begin
   return new;
 end $function$;
 
--- Attach trigger (drop first to make idempotent)
-DROP TRIGGER IF EXISTS trg_enforce_weekly_report_rate_limit ON public.weekly_report_requests;
+-- Attach trigger (defensive: skip if table missing)
+DO $$ BEGIN
+  IF to_regclass('public.weekly_report_requests') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS trg_enforce_weekly_report_rate_limit ON public.weekly_report_requests;
 
-CREATE TRIGGER trg_enforce_weekly_report_rate_limit
-  BEFORE INSERT ON public.weekly_report_requests
-  FOR EACH ROW EXECUTE FUNCTION public.enforce_weekly_report_rate_limit();
+    CREATE TRIGGER trg_enforce_weekly_report_rate_limit
+      BEFORE INSERT ON public.weekly_report_requests
+      FOR EACH ROW EXECUTE FUNCTION public.enforce_weekly_report_rate_limit();
+  ELSE
+    RAISE NOTICE 'weekly_report_requests does not exist — skipping trigger';
+  END IF;
+END $$;
