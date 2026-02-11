@@ -5,6 +5,22 @@ const TEAMMATE_EMAIL_C = `sanity-tm-${Date.now()}@test.local`;
 const TEAMMATE_EMAIL_D = `sanity-tmfu-${Date.now()}@test.local`;
 const WAITLIST_EMAIL = `sanity-wl-${Date.now()}@test.local`;
 
+interface Move {
+  name: string;
+  prescription: string;
+  notes?: string;
+}
+
+interface SessionDetail {
+  intensity: string;
+  title: string;
+  intent: string;
+  durationMin: number;
+  warmup: Move[];
+  main: Move[];
+  cooldown: Move[];
+}
+
 interface ApiResponse {
   ok: boolean;
   reason?: string;
@@ -13,7 +29,7 @@ interface ApiResponse {
   daysRemaining?: number;
   followupScheduled?: boolean;
   statusLine?: string;
-  planBullets?: string[];
+  sessions?: SessionDetail[];
   matchDayCue?: string;
   error?: string;
 }
@@ -67,8 +83,13 @@ async function run() {
   check("ok=true", a.data.ok === true, `got ${a.data.ok}`);
   check('source="public"', a.data.source === "public", `got ${a.data.source}`);
   check("statusLine is string", typeof a.data.statusLine === "string", `got ${typeof a.data.statusLine}`);
-  check("planBullets is array", Array.isArray(a.data.planBullets), `got ${typeof a.data.planBullets}`);
-  check("planBullets.length >= 3", (a.data.planBullets?.length ?? 0) >= 3, `got ${a.data.planBullets?.length}`);
+  check("sessions is array", Array.isArray(a.data.sessions), `got ${typeof a.data.sessions}`);
+  check("sessions.length >= 1", (a.data.sessions?.length ?? 0) >= 1, `got ${a.data.sessions?.length}`);
+  const firstSession = a.data.sessions?.[0];
+  check("session has intensity", typeof firstSession?.intensity === "string", `got ${firstSession?.intensity}`);
+  check("session has warmup array", Array.isArray(firstSession?.warmup), `got ${typeof firstSession?.warmup}`);
+  check("session has main array", Array.isArray(firstSession?.main), `got ${typeof firstSession?.main}`);
+  check("session has cooldown array", Array.isArray(firstSession?.cooldown), `got ${typeof firstSession?.cooldown}`);
   check("matchDayCue is string", typeof a.data.matchDayCue === "string", `got ${typeof a.data.matchDayCue}`);
 
   // B) Public second report same email — should be rate-limited
@@ -100,7 +121,10 @@ async function run() {
     includeSpeedExposure: true,
   }));
   check("status 200", e2.status === 200, `got ${e2.status}`);
-  check("has speed bullet", (e2.data.planBullets ?? []).some(b => b.toLowerCase().includes("sprint")), "no sprint bullet found");
+  const hasSprintMove = (e2.data.sessions ?? []).some(s =>
+    s.main.some(m => m.name.toLowerCase().includes("sprint"))
+  );
+  check("has sprint move", hasSprintMove, "no sprint move found in any session");
 
   // F) Waitlist — new signup
   console.log("\nF) Waitlist new signup");
