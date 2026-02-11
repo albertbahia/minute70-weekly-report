@@ -367,6 +367,10 @@ export default function WeeklyReportPage() {
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg space-y-6">
+          <a href="/" className="text-lg font-bold tracking-tight text-[var(--foreground)] hover:text-[var(--primary)] transition-colors">
+            Minute70
+          </a>
+
           <h1 className="text-3xl font-bold text-[var(--foreground)] text-center">
             Your Weekly Report
           </h1>
@@ -577,6 +581,13 @@ export default function WeeklyReportPage() {
           >
             Generate another report
           </button>
+
+          <a
+            href="/"
+            className="block mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
+          >
+            Back to home
+          </a>
         </div>
 
         {/* Toast */}
