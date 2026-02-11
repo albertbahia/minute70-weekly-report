@@ -26,6 +26,41 @@ const RECOVERY_MODE_OPTIONS = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Sh
 
 const LS_KEY = "minute70_recovery_mode";
 
+// --- Recovery mobility data ---
+const RECOVERY_FIXED_MOVES = [
+  "Hip flexor lunge stretch \u2014 30s/side",
+  "Adductor rock-backs \u2014 10 reps/side",
+  "Glute bridge hold \u2014 2 \u00d7 25s (rest 15s)",
+];
+
+const RECOVERY_ROTATING_POOL = [
+  "90/90 hip switches \u2014 8 reps/side",
+  "Hamstring scoops \u2014 10 reps/side",
+  "Standing quad stretch \u2014 30s/side",
+  "Calf raises \u2014 12 reps/side",
+  "Ankle rocks \u2014 10 reps/side",
+];
+
+function getDailyRotation(): [string, string] {
+  const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    hash = ((hash << 5) - hash + dateStr.charCodeAt(i)) | 0;
+  }
+  hash = Math.abs(hash);
+  const pool = [...RECOVERY_ROTATING_POOL];
+  const firstIdx = hash % pool.length;
+  const pick1 = pool.splice(firstIdx, 1)[0];
+  const secondIdx = Math.floor(hash / 5) % pool.length;
+  const pick2 = pool[secondIdx];
+  return [pick1, pick2];
+}
+
+function getRecoveryMoves(): string[] {
+  const [r1, r2] = getDailyRotation();
+  return [...RECOVERY_FIXED_MOVES, r1, r2];
+}
+
 function getStoredRecoveryMode(): string {
   if (typeof window === "undefined") return "Walk";
   try {
@@ -60,6 +95,11 @@ export default function WeeklyReportPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Recovery mode toggle
+  const [recoveryActive, setRecoveryActive] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
   const teammateValidated = teammateCode === "ELMPARC2FREE";
 
   // Load recovery_mode from localStorage on mount
@@ -90,6 +130,14 @@ export default function WeeklyReportPage() {
     }
     setEmail(trimmed);
     setStep(2);
+
+    // Fetch recovery preference (non-blocking)
+    fetch(`/api/preferences?email=${encodeURIComponent(trimmed)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.isRecoveryActive) setRecoveryActive(true);
+      })
+      .catch(() => {/* preference fetch is best-effort */});
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -141,8 +189,57 @@ export default function WeeklyReportPage() {
   const selectClass =
     "w-full rounded-xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3.5 text-base text-[var(--foreground)] border-l-4 border-l-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all duration-200 appearance-none cursor-pointer";
 
+  // --- Recovery toggle handler ---
+  async function handleRecoveryToggle() {
+    setRecoveryLoading(true);
+    const enabling = !recoveryActive;
+    try {
+      const res = await fetch("/api/preferences/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, enabled: enabling }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setRecoveryActive(enabling);
+        showToast(enabling ? "Switched to Recovery mode." : "Recovery mode disabled.");
+      }
+    } catch {
+      showToast("Could not update preference.");
+    }
+    setRecoveryLoading(false);
+  }
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  // --- Copy to clipboard ---
+  function handleCopyPlan() {
+    if (!report) return;
+    const moderateIdx = report.planBullets.findIndex((b) => /\bmoderate\b/i.test(b));
+    const lines: string[] = [report.statusLine, "", "This week\u2019s plan:"];
+    report.planBullets.forEach((bullet, i) => {
+      if (recoveryActive && i === moderateIdx) {
+        lines.push("\u2022 Recovery Session (mobility):");
+        getRecoveryMoves().forEach((m) => lines.push(`  - ${m}`));
+      } else {
+        lines.push(`\u2022 ${bullet}`);
+      }
+    });
+    lines.push("", report.matchDayCue);
+    navigator.clipboard.writeText(lines.join("\n")).then(
+      () => showToast("Copied to clipboard."),
+      () => showToast("Could not copy."),
+    );
+  }
+
   // --- Report view ---
   if (report !== null) {
+    const moderateIdx = report.planBullets.findIndex((b) => /\bmoderate\b/i.test(b));
+    const recoveryMoves = getRecoveryMoves();
+
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg space-y-6">
@@ -166,14 +263,50 @@ export default function WeeklyReportPage() {
                 This week&apos;s plan
               </h3>
               <ul className="space-y-2.5">
-                {report.planBullets.map((bullet, i) => (
-                  <li key={i} className="flex gap-3 text-[var(--foreground)]">
-                    <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
-                    <span className="text-base">{bullet}</span>
-                  </li>
-                ))}
+                {report.planBullets.map((bullet, i) => {
+                  if (recoveryActive && i === moderateIdx) {
+                    return (
+                      <li key={i}>
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--input-bg)] p-4 space-y-2">
+                          <p className="text-sm font-semibold text-[var(--primary)] uppercase tracking-wide">
+                            Recovery Session
+                          </p>
+                          <ul className="space-y-1.5">
+                            {recoveryMoves.map((move, j) => (
+                              <li key={j} className="flex gap-2 text-sm text-[var(--foreground)]">
+                                <span className="flex-shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                                {move}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={i} className="flex gap-3 text-[var(--foreground)]">
+                      <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
+                      <span className="text-base">{bullet}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
+
+            {/* Recovery toggle button — only when a moderate bullet exists */}
+            {moderateIdx >= 0 && (
+              <button
+                onClick={handleRecoveryToggle}
+                disabled={recoveryLoading}
+                className="text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4 disabled:opacity-50"
+              >
+                {recoveryLoading
+                  ? "Updating..."
+                  : recoveryActive
+                    ? "Disable Recovery mode"
+                    : "Switch to Recovery mode"}
+              </button>
+            )}
 
             <div className="rounded-xl bg-[var(--input-bg)] border border-[var(--border)] border-l-4 border-l-[var(--primary)] px-4 py-3">
               <p className="text-sm text-[var(--foreground)]">
@@ -181,6 +314,18 @@ export default function WeeklyReportPage() {
               </p>
             </div>
           </div>
+
+          {/* Copy plan */}
+          <button
+            onClick={handleCopyPlan}
+            className="flex items-center gap-2 mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth={2} />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeWidth={2} />
+            </svg>
+            Copy plan
+          </button>
 
           <a
             href="/waitlist"
@@ -196,6 +341,13 @@ export default function WeeklyReportPage() {
             Generate another report
           </button>
         </div>
+
+        {/* Toast */}
+        {toast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-emerald-700 text-sm font-medium shadow-[var(--card-shadow)] z-50">
+            {toast}
+          </div>
+        )}
       </main>
     );
   }
