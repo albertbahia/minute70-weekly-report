@@ -24,67 +24,162 @@ const VALID_LEGS = ["Fresh", "Medium", "Heavy", "Tweaky"];
 const VALID_TISSUE = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Flexors", "Ankles"];
 const VALID_RECOVERY = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"];
 
+// --- Session detail types ---
+interface Move {
+  name: string;
+  prescription: string;
+  notes?: string;
+}
+
+interface SessionDetail {
+  intensity: "moderate" | "light" | "recovery";
+  title: string;
+  intent: string;
+  durationMin: number;
+  warmup: Move[];
+  main: Move[];
+  cooldown: Move[];
+}
+
+// --- Tissue-focus lookup ---
+const TISSUE_ACTIVATION: Record<string, Move> = {
+  Quads:        { name: "Wall sit hold", prescription: "2 \u00d7 20s" },
+  Hamstrings:   { name: "Single-leg RDL", prescription: "2 \u00d7 8 reps/side", notes: "Bodyweight only" },
+  Calves:       { name: "Calf raise hold", prescription: "2 \u00d7 12 reps" },
+  Glutes:       { name: "Glute bridge", prescription: "2 \u00d7 10 reps" },
+  "Hip Flexors":{ name: "Hip flexor march", prescription: "2 \u00d7 10 reps/side" },
+  Ankles:       { name: "Ankle circles", prescription: "10 each direction/side" },
+};
+
+const TISSUE_STRETCH: Record<string, Move> = {
+  Quads:        { name: "Standing quad stretch", prescription: "30s/side" },
+  Hamstrings:   { name: "Standing hamstring stretch", prescription: "30s/side" },
+  Calves:       { name: "Wall calf stretch", prescription: "30s/side" },
+  Glutes:       { name: "Pigeon stretch", prescription: "30s/side" },
+  "Hip Flexors":{ name: "Hip flexor lunge stretch", prescription: "30s/side" },
+  Ankles:       { name: "Ankle dorsiflexion stretch", prescription: "30s/side" },
+};
+
 function generatePlan(
   legsStatus: string,
-  weeklyLoad: number,
+  _weeklyLoad: number,
   matchDay: string,
   tissueFocus: string,
   includeSpeedExposure: boolean,
-  recoveryMode: string,
+  _recoveryMode: string,
 ) {
   const STATUS_LINES: Record<string, string> = {
-    Fresh: "Legs feeling good — time to build on that.",
+    Fresh: "Legs feeling good \u2014 time to build on that.",
     Medium: "Solid base this week. A smart taper will sharpen you up.",
     Heavy: "Legs are loaded. This week is about recovery, not volume.",
-    Tweaky: "Something's off — protect it now so you're available on match day.",
-  };
-
-  const BASE_BULLETS: Record<string, string[]> = {
-    Fresh: [
-      "2 moderate sessions (tempo runs or ball work) early in the week",
-      "1 short high-intensity burst (sprints or small-sided game) mid-week",
-      "Rest or light walk the day before match day",
-    ],
-    Medium: [
-      "1 moderate session early in the week to maintain rhythm",
-      "1 light recovery session mid-week",
-      "Full rest day before match day — trust the taper",
-    ],
-    Heavy: [
-      "Active recovery only — walks, stretching, foam rolling",
-      "1 light technical session (passing, touch drills) if legs allow",
-      "Prioritize sleep and hydration over any training volume",
-    ],
-    Tweaky: [
-      "Skip all high-impact training until discomfort clears",
-      "Light mobility work and targeted stretching daily",
-      "If pain persists beyond 48 hours, see a physio before match day",
-    ],
+    Tweaky: "Something\u2019s off \u2014 protect it now so you\u2019re available on match day.",
   };
 
   const statusLine = STATUS_LINES[legsStatus] ?? "Plan generated.";
-  const planBullets = [...(BASE_BULLETS[legsStatus] ?? ["Follow your usual routine."])];
+  const activation = TISSUE_ACTIVATION[tissueFocus] ?? TISSUE_ACTIVATION["Quads"];
+  const stretch = TISSUE_STRETCH[tissueFocus] ?? TISSUE_STRETCH["Quads"];
+  const sessions: SessionDetail[] = [];
 
-  // Enrich with tissue focus
-  if (tissueFocus && legsStatus !== "Tweaky") {
-    planBullets.push(`Add targeted ${tissueFocus.toLowerCase()} work (mobility + activation) before sessions`);
-  } else if (tissueFocus && legsStatus === "Tweaky") {
-    planBullets.push(`Gentle ${tissueFocus.toLowerCase()} stretching only — no loaded exercises`);
-  }
+  if (legsStatus === "Fresh" || legsStatus === "Medium") {
+    // --- Moderate session ---
+    const mainMoves: Move[] = [
+      { name: "Tempo run", prescription: "4 \u00d7 3 min at RPE 6\u20137", notes: "90s walk between sets" },
+      { name: "Ball work / passing drill", prescription: "8 min" },
+      { name: "Change-of-direction drill", prescription: "6 reps \u00d7 20m" },
+      { name: "Positional patterns", prescription: "5 min" },
+    ];
+    if (includeSpeedExposure) {
+      mainMoves.push({ name: "Short sprints", prescription: "4 \u00d7 15m at 85%", notes: "Walk-back recovery" });
+    }
 
-  // Enrich with speed exposure
-  if (includeSpeedExposure && (legsStatus === "Fresh" || legsStatus === "Medium")) {
-    planBullets.push("Include 4–6 short sprints (10–20m) at 85–90% effort mid-week");
-  } else if (includeSpeedExposure && legsStatus === "Heavy") {
-    planBullets.push("Delay speed work until legs feel lighter — walk-throughs only");
-  }
+    sessions.push({
+      intensity: "moderate",
+      title: "Moderate Rhythm Session",
+      intent: "Maintain match tempo and keep your legs ticking over.",
+      durationMin: includeSpeedExposure ? 40 : 35,
+      warmup: [
+        { name: "Easy jog", prescription: "5 min", notes: "Build pace gradually" },
+        { name: "Leg swings", prescription: "10 each direction/side" },
+        { name: "Hip circles", prescription: "8 reps/side" },
+        activation,
+      ],
+      main: mainMoves,
+      cooldown: [
+        { name: "Easy walk", prescription: "3 min" },
+        stretch,
+        { name: "Foam roll", prescription: "2 min lower body" },
+      ],
+    });
 
-  // Enrich with recovery mode
-  const recoveryLower = recoveryMode.toLowerCase();
-  if (recoveryMode === "Full Rest") {
-    planBullets.push("Recovery day = full rest — no training, no cross-training");
+    // --- Light session ---
+    sessions.push({
+      intensity: "light",
+      title: "Light Technical Session",
+      intent: "Stay sharp without adding fatigue.",
+      durationMin: 25,
+      warmup: [
+        { name: "Walk", prescription: "3 min" },
+        { name: "Ankle rocks", prescription: "10 reps/side" },
+        { name: "Bodyweight squats", prescription: "8 reps, slow" },
+      ],
+      main: [
+        { name: "Technical ball touches", prescription: "8 min, easy pace" },
+        { name: "Passing drill (ground)", prescription: "5 min pairs" },
+        { name: "Light positional walk-through", prescription: "5 min" },
+      ],
+      cooldown: [
+        stretch,
+        { name: "Hip flexor stretch", prescription: "30s/side" },
+        { name: "Deep breathing", prescription: "2 min, lying down" },
+      ],
+    });
+  } else if (legsStatus === "Heavy") {
+    sessions.push({
+      intensity: "light",
+      title: "Light Recovery Session",
+      intent: "Promote blood flow without loading tired legs.",
+      durationMin: 20,
+      warmup: [
+        { name: "Easy walk", prescription: "5 min" },
+        { name: "Arm circles", prescription: "10 each direction" },
+        { name: "Gentle leg swings", prescription: "8/side" },
+      ],
+      main: [
+        { name: "Technical ball touches", prescription: "5 min, very easy" },
+        { name: "Passing drill (ground)", prescription: "5 min, no running" },
+        activation,
+      ],
+      cooldown: [
+        stretch,
+        { name: "Foam roll", prescription: "3 min full lower body" },
+        { name: "Deep breathing", prescription: "2 min, lying down" },
+      ],
+    });
   } else {
-    planBullets.push(`Recovery session: ${recoveryLower} for 20–30 min on off days`);
+    // Tweaky
+    const gentleStretch: Move = { ...stretch, notes: "Gentle \u2014 stop if painful" };
+    sessions.push({
+      intensity: "light",
+      title: "Gentle Mobility Session",
+      intent: "Protect the area and maintain range of motion.",
+      durationMin: 20,
+      warmup: [
+        { name: "Slow walk", prescription: "3 min" },
+        { name: "Arm circles", prescription: "10 each direction" },
+        { name: "Cat-cow", prescription: "8 reps" },
+      ],
+      main: [
+        { name: "Seated hip circles", prescription: "8 reps/side" },
+        { name: "Supine knee rocks", prescription: "10 reps/side" },
+        { name: "Gentle ankle rocks", prescription: "10 reps/side" },
+        { name: gentleStretch.name, prescription: gentleStretch.prescription, notes: gentleStretch.notes },
+      ],
+      cooldown: [
+        { name: "Seated forward fold", prescription: "30s" },
+        { name: "Supine twist", prescription: "20s/side" },
+        { name: "Deep breathing", prescription: "2 min, lying down" },
+      ],
+    });
   }
 
   const daysUntilMatch = (() => {
@@ -97,10 +192,10 @@ function generatePlan(
 
   const matchDayCue =
     daysUntilMatch <= 2
-      ? `Match day is ${matchDay} — ${daysUntilMatch === 1 ? "tomorrow" : "in 2 days"}. Lock in rest and hydration.`
+      ? `Match day is ${matchDay} \u2014 ${daysUntilMatch === 1 ? "tomorrow" : "in 2 days"}. Lock in rest and hydration.`
       : `Match day is ${matchDay} (${daysUntilMatch} days out). You have time to train smart this week.`;
 
-  return { statusLine, planBullets, matchDayCue };
+  return { statusLine, sessions, matchDayCue };
 }
 
 export async function POST(request: Request) {
@@ -322,7 +417,7 @@ export async function POST(request: Request) {
       source,
       followupScheduled: followupCreated,
       statusLine: plan.statusLine,
-      planBullets: plan.planBullets,
+      sessions: plan.sessions,
       matchDayCue: plan.matchDayCue,
     });
   } catch (err) {

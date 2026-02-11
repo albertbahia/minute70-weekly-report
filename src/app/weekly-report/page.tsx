@@ -6,12 +6,28 @@ import { getLateWindow } from "@/lib/late-window";
 const HALF_LENGTH_OPTIONS = [20, 25, 30, 35, 40, 45] as const;
 const DEFAULT_HALF = 25;
 
+interface Move {
+  name: string;
+  prescription: string;
+  notes?: string;
+}
+
+interface SessionDetail {
+  intensity: "moderate" | "light" | "recovery";
+  title: string;
+  intent: string;
+  durationMin: number;
+  warmup: Move[];
+  main: Move[];
+  cooldown: Move[];
+}
+
 interface ReportResponse {
   ok: boolean;
   source: "public" | "teammate";
   followupScheduled: boolean;
   statusLine: string;
-  planBullets: string[];
+  sessions: SessionDetail[];
   matchDayCue: string;
   reason?: string;
   daysRemaining?: number;
@@ -25,6 +41,65 @@ const TISSUE_FOCUS_OPTIONS = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Fl
 const RECOVERY_MODE_OPTIONS = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"] as const;
 
 const LS_KEY = "minute70_recovery_mode";
+
+// --- Recovery mobility data ---
+const RECOVERY_FIXED_MOVES = [
+  "Hip flexor lunge stretch \u2014 30s/side",
+  "Adductor rock-backs \u2014 10 reps/side",
+  "Glute bridge hold \u2014 2 \u00d7 25s (rest 15s)",
+];
+
+const RECOVERY_ROTATING_POOL = [
+  "90/90 hip switches \u2014 8 reps/side",
+  "Hamstring scoops \u2014 10 reps/side",
+  "Standing quad stretch \u2014 30s/side",
+  "Calf raises \u2014 12 reps/side",
+  "Ankle rocks \u2014 10 reps/side",
+];
+
+function getDailyRotation(): [string, string] {
+  const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    hash = ((hash << 5) - hash + dateStr.charCodeAt(i)) | 0;
+  }
+  hash = Math.abs(hash);
+  const pool = [...RECOVERY_ROTATING_POOL];
+  const firstIdx = hash % pool.length;
+  const pick1 = pool.splice(firstIdx, 1)[0];
+  const secondIdx = Math.floor(hash / 5) % pool.length;
+  const pick2 = pool[secondIdx];
+  return [pick1, pick2];
+}
+
+function getRecoveryMoveStrings(): string[] {
+  const [r1, r2] = getDailyRotation();
+  return [...RECOVERY_FIXED_MOVES, r1, r2];
+}
+
+function buildRecoverySession(): SessionDetail {
+  const moves = getRecoveryMoveStrings();
+  return {
+    intensity: "recovery",
+    title: "Recovery Session",
+    intent: "Promote blood flow and restore range of motion.",
+    durationMin: 20,
+    warmup: [
+      { name: "Easy walk", prescription: "3 min" },
+      { name: "Arm circles", prescription: "10 each direction" },
+      { name: "Cat-cow", prescription: "8 reps" },
+    ],
+    main: moves.map((m) => {
+      const parts = m.split(" \u2014 ");
+      return { name: parts[0], prescription: parts[1] ?? "" };
+    }),
+    cooldown: [
+      { name: "Seated forward fold", prescription: "30s" },
+      { name: "Supine twist", prescription: "20s/side" },
+      { name: "Deep breathing", prescription: "2 min" },
+    ],
+  };
+}
 
 function getStoredRecoveryMode(): string {
   if (typeof window === "undefined") return "Walk";
@@ -60,6 +135,11 @@ export default function WeeklyReportPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Recovery mode toggle
+  const [recoveryActive, setRecoveryActive] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
   const teammateValidated = teammateCode === "ELMPARC2FREE";
 
   // Load recovery_mode from localStorage on mount
@@ -90,6 +170,14 @@ export default function WeeklyReportPage() {
     }
     setEmail(trimmed);
     setStep(2);
+
+    // Fetch recovery preference (non-blocking)
+    fetch(`/api/preferences?email=${encodeURIComponent(trimmed)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.isRecoveryActive) setRecoveryActive(true);
+      })
+      .catch(() => {/* preference fetch is best-effort */});
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -141,8 +229,87 @@ export default function WeeklyReportPage() {
   const selectClass =
     "w-full rounded-xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3.5 text-base text-[var(--foreground)] border-l-4 border-l-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all duration-200 appearance-none cursor-pointer";
 
+  // --- Recovery toggle handler ---
+  async function handleRecoveryToggle() {
+    setRecoveryLoading(true);
+    const enabling = !recoveryActive;
+    try {
+      const res = await fetch("/api/preferences/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, enabled: enabling }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setRecoveryActive(enabling);
+        showToast(enabling ? "Switched to Recovery mode." : "Recovery mode disabled.");
+      }
+    } catch {
+      showToast("Could not update preference.");
+    }
+    setRecoveryLoading(false);
+  }
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  // --- Accordion state ---
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  function toggleSection(key: string) {
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  // --- Copy to clipboard ---
+  function handleCopyPlan() {
+    if (!report) return;
+    const displaySessions = getDisplaySessions();
+    const lines: string[] = [report.statusLine, ""];
+    displaySessions.forEach((s) => {
+      lines.push(`${s.title} (~${s.durationMin} min)`);
+      lines.push(`  Warm-up:`);
+      s.warmup.forEach((m) => lines.push(`    - ${m.name} - ${m.prescription}`));
+      lines.push(`  Main Work:`);
+      s.main.forEach((m) => lines.push(`    - ${m.name} - ${m.prescription}`));
+      lines.push(`  Cooldown:`);
+      s.cooldown.forEach((m) => lines.push(`    - ${m.name} - ${m.prescription}`));
+      lines.push("");
+    });
+    lines.push(report.matchDayCue);
+    navigator.clipboard.writeText(lines.join("\n")).then(
+      () => showToast("Copied to clipboard."),
+      () => showToast("Could not copy."),
+    );
+  }
+
+  // --- Build display sessions (apply Recovery swap if active) ---
+  function getDisplaySessions(): SessionDetail[] {
+    if (!report) return [];
+    const sessions = [...report.sessions];
+    if (recoveryActive) {
+      const idx = sessions.findIndex((s) => s.intensity === "moderate");
+      if (idx >= 0) {
+        sessions[idx] = buildRecoverySession();
+      }
+    }
+    return sessions;
+  }
+
   // --- Report view ---
   if (report !== null) {
+    const moderateIdx = report.sessions.findIndex((s) => s.intensity === "moderate");
+    const displaySessions = getDisplaySessions();
+
+    const INTENSITY_BADGE: Record<string, string> = {
+      moderate: "bg-[var(--primary)] text-white",
+      light: "bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--border)]",
+      recovery: "bg-[var(--accent)] text-white",
+    };
+
+    const SECTION_LABELS = ["Warm-up", "Main Work", "Cooldown / Mobility"] as const;
+    const SECTION_KEYS = ["warmup", "main", "cooldown"] as const;
+
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg space-y-6">
@@ -156,31 +323,112 @@ export default function WeeklyReportPage() {
             </div>
           )}
 
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--card-shadow-lg)] space-y-5">
-            <p className="text-lg font-medium text-[var(--foreground)]">
-              {report.statusLine}
+          <p className="text-lg font-medium text-[var(--foreground)] text-center">
+            {report.statusLine}
+          </p>
+
+          {/* Session cards */}
+          {displaySessions.map((session, si) => (
+            <div
+              key={si}
+              className="bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-[var(--card-shadow)] overflow-hidden"
+            >
+              {/* Card header */}
+              <div className="p-5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`text-xs font-semibold uppercase tracking-wide px-2.5 py-0.5 rounded-full ${INTENSITY_BADGE[session.intensity] ?? ""}`}
+                  >
+                    {session.intensity}
+                  </span>
+                  <span className="text-xs text-[var(--muted)]">~{session.durationMin} min</span>
+                </div>
+                <h3 className="text-base font-bold text-[var(--foreground)]">{session.title}</h3>
+                <p className="text-sm text-[var(--muted)]">{session.intent}</p>
+              </div>
+
+              {/* Accordion sections */}
+              <div className="border-t border-[var(--border)]">
+                {SECTION_LABELS.map((label, secIdx) => {
+                  const key = `${si}-${secIdx}`;
+                  const isOpen = openSections[key] ?? false;
+                  const moves: Move[] = session[SECTION_KEYS[secIdx]];
+                  return (
+                    <div key={secIdx} className={secIdx > 0 ? "border-t border-[var(--border)]" : ""}>
+                      <button
+                        onClick={() => toggleSection(key)}
+                        className="w-full flex items-center justify-between px-5 py-3 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--input-bg)] transition-colors"
+                      >
+                        <span>
+                          {label}{" "}
+                          <span className="font-normal text-[var(--muted)]">({moves.length})</span>
+                        </span>
+                        <svg
+                          className={`h-4 w-4 text-[var(--muted)] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isOpen && (
+                        <ul className="px-5 pb-3 space-y-2">
+                          {moves.map((move, mi) => (
+                            <li key={mi} className="flex gap-2">
+                              <span className="flex-shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+                              <div>
+                                <span className="text-sm text-[var(--foreground)]">
+                                  {move.name} <span className="font-medium">{move.prescription}</span>
+                                </span>
+                                {move.notes && (
+                                  <p className="text-xs text-[var(--muted)] italic">{move.notes}</p>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Recovery toggle — only when a moderate session exists */}
+          {moderateIdx >= 0 && (
+            <button
+              onClick={handleRecoveryToggle}
+              disabled={recoveryLoading}
+              className="block mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4 disabled:opacity-50"
+            >
+              {recoveryLoading
+                ? "Updating..."
+                : recoveryActive
+                  ? "Disable Recovery mode"
+                  : "Switch to Recovery mode"}
+            </button>
+          )}
+
+          {/* Match day cue */}
+          <div className="rounded-xl bg-[var(--input-bg)] border border-[var(--border)] border-l-4 border-l-[var(--primary)] px-4 py-3">
+            <p className="text-sm text-[var(--foreground)]">
+              {report.matchDayCue}
             </p>
-
-            <div>
-              <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">
-                This week&apos;s plan
-              </h3>
-              <ul className="space-y-2.5">
-                {report.planBullets.map((bullet, i) => (
-                  <li key={i} className="flex gap-3 text-[var(--foreground)]">
-                    <span className="flex-shrink-0 mt-1.5 h-2 w-2 rounded-full bg-[var(--primary)]" />
-                    <span className="text-base">{bullet}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="rounded-xl bg-[var(--input-bg)] border border-[var(--border)] border-l-4 border-l-[var(--primary)] px-4 py-3">
-              <p className="text-sm text-[var(--foreground)]">
-                {report.matchDayCue}
-              </p>
-            </div>
           </div>
+
+          {/* Copy plan */}
+          <button
+            onClick={handleCopyPlan}
+            className="flex items-center gap-2 mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth={2} />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeWidth={2} />
+            </svg>
+            Copy plan
+          </button>
 
           <a
             href="/waitlist"
@@ -196,6 +444,13 @@ export default function WeeklyReportPage() {
             Generate another report
           </button>
         </div>
+
+        {/* Toast */}
+        {toast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-emerald-700 text-sm font-medium shadow-[var(--card-shadow)] z-50">
+            {toast}
+          </div>
+        )}
       </main>
     );
   }
