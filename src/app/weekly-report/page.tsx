@@ -45,7 +45,6 @@ const FEEDBACK_CHOICES = [
 ] as const;
 
 const MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const WEEKLY_LOAD_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7"];
 const LEGS_OPTIONS = ["Fresh", "Medium", "Heavy", "Tweaky"] as const;
 const TISSUE_FOCUS_OPTIONS = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Flexors", "Ankles"] as const;
 const RECOVERY_MODE_OPTIONS = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"] as const;
@@ -131,7 +130,6 @@ export default function WeeklyReportPage() {
 
   // Step 2
   const [matchDay, setMatchDay] = useState("");
-  const [weeklyLoad, setWeeklyLoad] = useState("");
   const [legsStatus, setLegsStatus] = useState("");
   const [tissueFocus, setTissueFocus] = useState("");
   const [includeSpeedExposure, setIncludeSpeedExposure] = useState(false);
@@ -226,7 +224,6 @@ export default function WeeklyReportPage() {
         body: JSON.stringify({
           email,
           matchDay,
-          weeklyLoad: Number(weeklyLoad),
           legsStatus,
           tissueFocus,
           includeSpeedExposure,
@@ -351,7 +348,6 @@ export default function WeeklyReportPage() {
           feedbackOther: feedbackChoice === "Other" ? feedbackOther : undefined,
           reportContext: {
             matchDay,
-            weeklyLoad: Number(weeklyLoad),
             legsStatus,
             tissueFocus,
             halfLength,
@@ -880,30 +876,6 @@ export default function WeeklyReportPage() {
             <p className="mt-1.5 text-xs text-[var(--muted)]">
               Late window = last {lateWindow} minutes
             </p>
-          </div>
-
-          {/* Weekly Load */}
-          <div>
-            <label htmlFor="weeklyLoad" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-              Weekly Load (sessions) <span className="text-[var(--destructive)]">*</span>
-            </label>
-            <div className="relative">
-              <select
-                id="weeklyLoad"
-                required
-                value={weeklyLoad}
-                onChange={(e) => setWeeklyLoad(e.target.value)}
-                className={`${selectClass} ${!weeklyLoad ? "text-[var(--muted)]" : ""}`}
-              >
-                <option value="" disabled>Select sessions this week</option>
-                {WEEKLY_LOAD_OPTIONS.map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-              <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
           </div>
 
           {/* Legs Status */}

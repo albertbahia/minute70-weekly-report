@@ -14,7 +14,6 @@ interface SorenessInput {
 interface ReportBody {
   email: string;
   matchDay: string;
-  weeklyLoad: number;
   legsStatus: string;
   tissueFocus: string;
   includeSpeedExposure: boolean;
@@ -72,7 +71,6 @@ const TISSUE_STRETCH: Record<string, Move> = {
 
 function generatePlan(
   legsStatus: string,
-  _weeklyLoad: number,
   matchDay: string,
   tissueFocus: string,
   includeSpeedExposure: boolean,
@@ -214,13 +212,13 @@ export async function POST(request: Request) {
 
     // --- Validation ---
     const {
-      email, matchDay, weeklyLoad, legsStatus, tissueFocus,
+      email, matchDay, legsStatus, tissueFocus,
       includeSpeedExposure, recoveryMode, halfLengthMinutes, teammateCode, emailReminder,
     } = body;
 
     const halfLength = halfLengthMinutes ?? 25;
 
-    if (!email || !matchDay || weeklyLoad === undefined || !legsStatus || !tissueFocus || !recoveryMode) {
+    if (!email || !matchDay || !legsStatus || !tissueFocus || !recoveryMode) {
       return NextResponse.json(
         { ok: false, reason: "validation", error: "All required fields must be filled." },
         { status: 400 }
@@ -238,13 +236,6 @@ export async function POST(request: Request) {
     if (!VALID_MATCH_DAYS.includes(matchDay)) {
       return NextResponse.json(
         { ok: false, reason: "validation", error: "Invalid match day." },
-        { status: 400 }
-      );
-    }
-
-    if (typeof weeklyLoad !== "number" || weeklyLoad < 0 || weeklyLoad > 7) {
-      return NextResponse.json(
-        { ok: false, reason: "validation", error: "Weekly load must be 0–7." },
         { status: 400 }
       );
     }
@@ -351,11 +342,11 @@ export async function POST(request: Request) {
       .insert({
         email: email.toLowerCase(),
         match_day: matchDay,
-        weekly_load: weeklyLoad,
         legs_status: legsStatus,
         tissue_focus: tissueFocus,
         include_speed_exposure: includeSpeedExposure,
         recovery_mode: recoveryMode,
+        weekly_load: 0,
         half_length_minutes: halfLength,
         teammate_code: isTeammate ? TEAMMATE_CODE : null,
         tier: isPaid ? "paid" : "free",
@@ -445,7 +436,7 @@ export async function POST(request: Request) {
     const source = isPaid ? "teammate" : "public";
     console.log(`[report] saved for ${email.toLowerCase()} — source=${source}`);
 
-    const plan = generatePlan(legsStatus, weeklyLoad, matchDay, tissueFocus, includeSpeedExposure, recoveryMode);
+    const plan = generatePlan(legsStatus, matchDay, tissueFocus, includeSpeedExposure, recoveryMode);
 
     return NextResponse.json({
       ok: true,

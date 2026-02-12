@@ -72,7 +72,6 @@ function reportBody(email: string) {
   return {
     email,
     matchDay: "Saturday",
-    weeklyLoad: 3,
     legsStatus: "Fresh",
     tissueFocus: "Quads",
     includeSpeedExposure: false,

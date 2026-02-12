@@ -51,7 +51,6 @@ async function post(body: Record<string, unknown>): Promise<{ status: number; da
 const report = (overrides: Record<string, unknown> = {}) => ({
   email: EMAIL,
   matchDay: "Saturday",
-  weeklyLoad: 3,
   legsStatus: "Fresh",
   tissueFocus: "Quads",
   includeSpeedExposure: false,
