@@ -34,6 +34,16 @@ interface ReportResponse {
   error?: string;
 }
 
+const FEEDBACK_CHOICES = [
+  "Clear and actionable — I can follow this",
+  "Too generic — needs more personalization",
+  "Too hard — volume/intensity feels high",
+  "Too easy — needs more challenge",
+  "Confusing — I'm not sure what to do first",
+  "Missing context — didn't match my match day / fatigue",
+  "Other",
+] as const;
+
 const MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const WEEKLY_LOAD_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7"];
 const LEGS_OPTIONS = ["Fresh", "Medium", "Heavy", "Tweaky"] as const;
@@ -139,6 +149,14 @@ export default function WeeklyReportPage() {
   const [recoveryActive, setRecoveryActive] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Feedback state
+  const [feedbackChoice, setFeedbackChoice] = useState("");
+  const [feedbackOther, setFeedbackOther] = useState("");
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackSkipped, setFeedbackSkipped] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState(false);
 
   const teammateValidated = teammateCode === "ELMPARC2FREE";
 
@@ -255,6 +273,42 @@ export default function WeeklyReportPage() {
     setTimeout(() => setToast(null), 3000);
   }
 
+  // --- Feedback submit ---
+  async function handleFeedbackSubmit() {
+    if (!feedbackChoice || feedbackSubmitted) return;
+    setFeedbackLoading(true);
+    try {
+      const res = await fetch("/api/feedback/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          feedbackChoice,
+          feedbackOther: feedbackChoice === "Other" ? feedbackOther : undefined,
+          reportContext: {
+            matchDay,
+            weeklyLoad: Number(weeklyLoad),
+            legsStatus,
+            tissueFocus,
+            halfLength,
+            recoveryActive,
+            source: report?.source,
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setFeedbackError(false);
+        setFeedbackSubmitted(true);
+      } else {
+        setFeedbackError(true);
+      }
+    } catch {
+      setFeedbackError(true);
+    }
+    setFeedbackLoading(false);
+  }
+
   // --- Accordion state ---
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   function toggleSection(key: string) {
@@ -313,6 +367,10 @@ export default function WeeklyReportPage() {
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-lg space-y-6">
+          <a href="/" className="text-lg font-bold tracking-tight text-[var(--foreground)] hover:text-[var(--primary)] transition-colors">
+            Minute70
+          </a>
+
           <h1 className="text-3xl font-bold text-[var(--foreground)] text-center">
             Your Weekly Report
           </h1>
@@ -418,6 +476,86 @@ export default function WeeklyReportPage() {
             </p>
           </div>
 
+          {/* Feedback card */}
+          {!feedbackSkipped && !feedbackSubmitted && (
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-[var(--card-shadow)] p-5 space-y-3">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--foreground)]">
+                  Quick feedback (10 seconds)
+                </h3>
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  Anonymous — we don&apos;t collect your email or identity. This helps improve Minute70.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="feedbackChoice" className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+                  What best describes this week&apos;s report?
+                </label>
+                <div className="relative">
+                  <select
+                    id="feedbackChoice"
+                    value={feedbackChoice}
+                    onChange={(e) => { setFeedbackChoice(e.target.value); setFeedbackError(false); }}
+                    className={`${selectClass} ${!feedbackChoice ? "text-[var(--muted)]" : ""}`}
+                  >
+                    <option value="" disabled>Select an option</option>
+                    {FEEDBACK_CHOICES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+
+              {feedbackChoice === "Other" && (
+                <div>
+                  <input
+                    type="text"
+                    value={feedbackOther}
+                    onChange={(e) => setFeedbackOther(e.target.value)}
+                    maxLength={240}
+                    placeholder="Type your feedback…"
+                    className={inputClass}
+                  />
+                  <p className="mt-1 text-xs text-[var(--muted)] text-right">{feedbackOther.length}/240</p>
+                </div>
+              )}
+
+              {feedbackError && (
+                <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-red-700 text-sm">
+                  Could not save feedback. Try again.
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackSkipped(true)}
+                  className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFeedbackSubmit}
+                  disabled={!feedbackChoice || feedbackLoading}
+                  className="rounded-xl bg-[var(--primary)] text-white text-sm font-semibold px-5 py-2 hover:brightness-110 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {feedbackLoading ? "Saving..." : "Submit"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {feedbackSubmitted && (
+            <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium text-center">
+              Thanks — feedback saved.
+            </div>
+          )}
+
           {/* Copy plan */}
           <button
             onClick={handleCopyPlan}
@@ -443,6 +581,13 @@ export default function WeeklyReportPage() {
           >
             Generate another report
           </button>
+
+          <a
+            href="/"
+            className="block mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
+          >
+            Back to home
+          </a>
         </div>
 
         {/* Toast */}
