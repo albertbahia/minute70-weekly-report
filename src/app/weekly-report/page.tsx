@@ -365,12 +365,16 @@ export default function WeeklyReportPage() {
     const SECTION_KEYS = ["warmup", "main", "cooldown"] as const;
 
     return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-lg space-y-6">
+      <>
+      <header className="w-full border-b border-[var(--border)]">
+        <div className="max-w-3xl mx-auto flex items-center justify-between px-6 py-4">
           <a href="/" className="text-lg font-bold tracking-tight text-[var(--foreground)] hover:text-[var(--primary)] transition-colors">
             Minute70
           </a>
-
+        </div>
+      </header>
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-lg space-y-6">
           <h1 className="text-3xl font-bold text-[var(--foreground)] text-center">
             Your Weekly Report
           </h1>
@@ -597,6 +601,7 @@ export default function WeeklyReportPage() {
           </div>
         )}
       </main>
+      </>
     );
   }
 
