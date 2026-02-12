@@ -51,7 +51,6 @@ async function post(body: Record<string, unknown>): Promise<{ status: number; da
 const report = (overrides: Record<string, unknown> = {}) => ({
   email: EMAIL,
   matchDay: "Saturday",
-  weeklyLoad: 3,
   legsStatus: "Fresh",
   tissueFocus: "Quads",
   includeSpeedExposure: false,
@@ -151,6 +150,42 @@ async function run() {
   const i = await postTo(WAITLIST_BASE, { email: "not-an-email" });
   check("status 400", i.status === 400, `got ${i.status}`);
   check("ok=false", i.data.ok === false, `got ${i.data.ok}`);
+
+  // J) Report with soreness + intent — new fields accepted
+  console.log("\nJ) Report with soreness + intent");
+  const SORENESS_EMAIL = `sanity-sore-${Date.now()}@test.local`;
+  const j = await post(report({
+    email: SORENESS_EMAIL,
+    requestedMode: "balanced",
+    soreness: { hamstrings: 3, groinAdductors: 2, quadsCalves: 1 },
+  }));
+  check("status 200", j.status === 200, `got ${j.status}`);
+  check("ok=true", j.data.ok === true, `got ${j.data.ok}`);
+
+  // K) Invalid soreness rejected
+  console.log("\nK) Invalid soreness rejected");
+  const BADSORE_EMAIL = `sanity-badsore-${Date.now()}@test.local`;
+  const k = await post(report({
+    email: BADSORE_EMAIL,
+    requestedMode: "balanced",
+    soreness: { hamstrings: 15, groinAdductors: 0, quadsCalves: 0 },
+  }));
+  check("status 400", k.status === 400, `got ${k.status}`);
+  check("ok=false", k.data.ok === false, `got ${k.data.ok}`);
+
+  // L) Event logging endpoint
+  console.log("\nL) Event logging");
+  const EVENTS_BASE = "http://localhost:3000/api/events/report";
+  const l1 = await postTo(EVENTS_BASE, {
+    eventType: "report_generated",
+    payload: { requestedMode: "balanced", actualMode: "balanced", sorenessMax: 3 },
+  });
+  check("valid event 200", l1.status === 200, `got ${l1.status}`);
+  check("ok=true", l1.data.ok === true, `got ${l1.data.ok}`);
+
+  const l2 = await postTo(EVENTS_BASE, { eventType: "invalid_event" });
+  check("invalid event 400", l2.status === 400, `got ${l2.status}`);
+  check("ok=false", l2.data.ok === false, `got ${l2.data.ok}`);
 
   // Summary
   console.log(`\n${passed} passed, ${failed} failed\n`);

@@ -4,10 +4,16 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 const TEAMMATE_CODE = "ELMPARC2FREE";
 const RATE_LIMIT_DAYS = 7;
 
+interface SorenessInput {
+  hamstrings: number;
+  groinAdductors: number;
+  quadsCalves: number;
+  other?: { label?: string; value: number };
+}
+
 interface ReportBody {
   email: string;
   matchDay: string;
-  weeklyLoad: number;
   legsStatus: string;
   tissueFocus: string;
   includeSpeedExposure: boolean;
@@ -15,6 +21,8 @@ interface ReportBody {
   halfLengthMinutes?: number;
   teammateCode?: string;
   emailReminder?: boolean;
+  requestedMode?: string;
+  soreness?: SorenessInput;
 }
 
 const VALID_HALF_LENGTHS = [20, 25, 30, 35, 40, 45];
@@ -23,6 +31,7 @@ const VALID_MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
 const VALID_LEGS = ["Fresh", "Medium", "Heavy", "Tweaky"];
 const VALID_TISSUE = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Flexors", "Ankles"];
 const VALID_RECOVERY = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"];
+const VALID_REQUESTED_MODES = ["recovery", "balanced", "push"];
 
 // --- Session detail types ---
 interface Move {
@@ -62,7 +71,6 @@ const TISSUE_STRETCH: Record<string, Move> = {
 
 function generatePlan(
   legsStatus: string,
-  _weeklyLoad: number,
   matchDay: string,
   tissueFocus: string,
   includeSpeedExposure: boolean,
@@ -204,13 +212,13 @@ export async function POST(request: Request) {
 
     // --- Validation ---
     const {
-      email, matchDay, weeklyLoad, legsStatus, tissueFocus,
+      email, matchDay, legsStatus, tissueFocus,
       includeSpeedExposure, recoveryMode, halfLengthMinutes, teammateCode, emailReminder,
     } = body;
 
     const halfLength = halfLengthMinutes ?? 25;
 
-    if (!email || !matchDay || weeklyLoad === undefined || !legsStatus || !tissueFocus || !recoveryMode) {
+    if (!email || !matchDay || !legsStatus || !tissueFocus || !recoveryMode) {
       return NextResponse.json(
         { ok: false, reason: "validation", error: "All required fields must be filled." },
         { status: 400 }
@@ -228,13 +236,6 @@ export async function POST(request: Request) {
     if (!VALID_MATCH_DAYS.includes(matchDay)) {
       return NextResponse.json(
         { ok: false, reason: "validation", error: "Invalid match day." },
-        { status: 400 }
-      );
-    }
-
-    if (typeof weeklyLoad !== "number" || weeklyLoad < 0 || weeklyLoad > 7) {
-      return NextResponse.json(
-        { ok: false, reason: "validation", error: "Weekly load must be 0–7." },
         { status: 400 }
       );
     }
@@ -265,6 +266,25 @@ export async function POST(request: Request) {
         { ok: false, reason: "validation", error: "Invalid half length." },
         { status: 400 }
       );
+    }
+
+    if (body.requestedMode && !VALID_REQUESTED_MODES.includes(body.requestedMode)) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid requested mode." },
+        { status: 400 }
+      );
+    }
+
+    if (body.soreness) {
+      const s = body.soreness;
+      const vals = [s.hamstrings, s.groinAdductors, s.quadsCalves];
+      if (s.other?.value !== undefined) vals.push(s.other.value);
+      if (vals.some((v) => typeof v !== "number" || v < 0 || v > 10)) {
+        return NextResponse.json(
+          { ok: false, reason: "validation", error: "Soreness values must be 0\u201310." },
+          { status: 400 }
+        );
+      }
     }
 
     const isTeammate = teammateCode === TEAMMATE_CODE;
@@ -322,14 +342,20 @@ export async function POST(request: Request) {
       .insert({
         email: email.toLowerCase(),
         match_day: matchDay,
-        weekly_load: weeklyLoad,
         legs_status: legsStatus,
         tissue_focus: tissueFocus,
         include_speed_exposure: includeSpeedExposure,
         recovery_mode: recoveryMode,
+        weekly_load: 0,
         half_length_minutes: halfLength,
         teammate_code: isTeammate ? TEAMMATE_CODE : null,
         tier: isPaid ? "paid" : "free",
+        requested_mode: body.requestedMode ?? null,
+        soreness_hamstrings: body.soreness?.hamstrings ?? null,
+        soreness_groin_adductors: body.soreness?.groinAdductors ?? null,
+        soreness_quads_calves: body.soreness?.quadsCalves ?? null,
+        soreness_other_label: body.soreness?.other?.label ?? null,
+        soreness_other_value: body.soreness?.other?.value ?? null,
       })
       .select("id")
       .single();
@@ -410,7 +436,7 @@ export async function POST(request: Request) {
     const source = isPaid ? "teammate" : "public";
     console.log(`[report] saved for ${email.toLowerCase()} — source=${source}`);
 
-    const plan = generatePlan(legsStatus, weeklyLoad, matchDay, tissueFocus, includeSpeedExposure, recoveryMode);
+    const plan = generatePlan(legsStatus, matchDay, tissueFocus, includeSpeedExposure, recoveryMode);
 
     return NextResponse.json({
       ok: true,

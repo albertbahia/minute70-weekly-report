@@ -45,10 +45,10 @@ const FEEDBACK_CHOICES = [
 ] as const;
 
 const MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const WEEKLY_LOAD_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7"];
 const LEGS_OPTIONS = ["Fresh", "Medium", "Heavy", "Tweaky"] as const;
 const TISSUE_FOCUS_OPTIONS = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Flexors", "Ankles"] as const;
 const RECOVERY_MODE_OPTIONS = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"] as const;
+const WEEK_INTENT_OPTIONS = ["Recovery", "Balanced", "Push"] as const;
 
 const LS_KEY = "minute70_recovery_mode";
 
@@ -130,7 +130,6 @@ export default function WeeklyReportPage() {
 
   // Step 2
   const [matchDay, setMatchDay] = useState("");
-  const [weeklyLoad, setWeeklyLoad] = useState("");
   const [legsStatus, setLegsStatus] = useState("");
   const [tissueFocus, setTissueFocus] = useState("");
   const [includeSpeedExposure, setIncludeSpeedExposure] = useState(false);
@@ -138,6 +137,21 @@ export default function WeeklyReportPage() {
   const [halfLength, setHalfLength] = useState(DEFAULT_HALF);
   const [teammateCode, setTeammateCode] = useState("");
   const [emailReminder, setEmailReminder] = useState(true);
+
+  // Week intent
+  const [requestedMode, setRequestedMode] = useState("");
+
+  // Soreness sliders
+  const [sorenessHamstrings, setSorenessHamstrings] = useState(0);
+  const [sorenessGroin, setSorenessGroin] = useState(0);
+  const [sorenessQuads, setSorenessQuads] = useState(0);
+  const [sorenessOtherLabel, setSorenessOtherLabel] = useState("");
+  const [sorenessOtherValue, setSorenessOtherValue] = useState(0);
+  const [sorenessOtherEnabled, setSorenessOtherEnabled] = useState(false);
+
+  // Override state (computed per generation, not persisted)
+  const [actualMode, setActualMode] = useState<string | null>(null);
+  const [overrideApplied, setOverrideApplied] = useState(false);
 
   const lateWindow = getLateWindow(halfLength);
 
@@ -210,7 +224,6 @@ export default function WeeklyReportPage() {
         body: JSON.stringify({
           email,
           matchDay,
-          weeklyLoad: Number(weeklyLoad),
           legsStatus,
           tissueFocus,
           includeSpeedExposure,
@@ -218,6 +231,15 @@ export default function WeeklyReportPage() {
           halfLengthMinutes: halfLength,
           teammateCode: teammateCode || undefined,
           emailReminder: teammateValidated ? emailReminder : undefined,
+          requestedMode: requestedMode.toLowerCase() || undefined,
+          soreness: {
+            hamstrings: sorenessHamstrings,
+            groinAdductors: sorenessGroin,
+            quadsCalves: sorenessQuads,
+            ...(sorenessOtherEnabled && sorenessOtherLabel.trim()
+              ? { other: { label: sorenessOtherLabel.trim(), value: sorenessOtherValue } }
+              : {}),
+          },
         }),
       });
 
@@ -225,6 +247,46 @@ export default function WeeklyReportPage() {
 
       if (json.ok === true) {
         setReport(json);
+
+        // Compute soreness override
+        const sorenessValues = [sorenessHamstrings, sorenessGroin, sorenessQuads];
+        if (sorenessOtherEnabled) sorenessValues.push(sorenessOtherValue);
+        const sorenessMax = Math.max(...sorenessValues);
+        const mode = requestedMode.toLowerCase();
+        const overridden = sorenessMax >= 7 && mode !== "recovery";
+        const finalMode = overridden ? "recovery" : mode;
+
+        setActualMode(finalMode);
+        setOverrideApplied(overridden);
+        if (finalMode === "recovery") setRecoveryActive(true);
+
+        // Fire anonymous events (non-blocking)
+        const eventPayload = {
+          requestedMode: mode,
+          actualMode: finalMode,
+          overrideApplied: overridden,
+          sorenessMax,
+          soreness: {
+            hamstrings: sorenessHamstrings,
+            groinAdductors: sorenessGroin,
+            quadsCalves: sorenessQuads,
+            ...(sorenessOtherEnabled ? { other: { label: sorenessOtherLabel, value: sorenessOtherValue } } : {}),
+          },
+          legsStatus,
+          matchDay,
+        };
+        fetch("/api/events/report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventType: "report_generated", payload: eventPayload }),
+        }).catch(() => {});
+        if (overridden) {
+          fetch("/api/events/report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ eventType: "mode_overridden", payload: { ...eventPayload, overrideReason: "soreness_max>=7" } }),
+          }).catch(() => {});
+        }
       } else {
         if (json.reason === "limit") {
           setErrorMsg(
@@ -286,11 +348,17 @@ export default function WeeklyReportPage() {
           feedbackOther: feedbackChoice === "Other" ? feedbackOther : undefined,
           reportContext: {
             matchDay,
-            weeklyLoad: Number(weeklyLoad),
             legsStatus,
             tissueFocus,
             halfLength,
             recoveryActive,
+            requestedMode,
+            actualMode,
+            overrideApplied,
+            sorenessMax: Math.max(
+              sorenessHamstrings, sorenessGroin, sorenessQuads,
+              ...(sorenessOtherEnabled ? [sorenessOtherValue] : []),
+            ),
             source: report?.source,
             generatedAt: new Date().toISOString(),
           },
@@ -341,7 +409,7 @@ export default function WeeklyReportPage() {
   function getDisplaySessions(): SessionDetail[] {
     if (!report) return [];
     const sessions = [...report.sessions];
-    if (recoveryActive) {
+    if (recoveryActive || actualMode === "recovery") {
       const idx = sessions.findIndex((s) => s.intensity === "moderate");
       if (idx >= 0) {
         sessions[idx] = buildRecoverySession();
@@ -365,12 +433,16 @@ export default function WeeklyReportPage() {
     const SECTION_KEYS = ["warmup", "main", "cooldown"] as const;
 
     return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-lg space-y-6">
+      <>
+      <header className="w-full border-b border-[var(--border)]">
+        <div className="max-w-3xl mx-auto flex items-center justify-between px-6 py-4">
           <a href="/" className="text-lg font-bold tracking-tight text-[var(--foreground)] hover:text-[var(--primary)] transition-colors">
             Minute70
           </a>
-
+        </div>
+      </header>
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-lg space-y-6">
           <h1 className="text-3xl font-bold text-[var(--foreground)] text-center">
             Your Weekly Report
           </h1>
@@ -384,6 +456,32 @@ export default function WeeklyReportPage() {
           <p className="text-lg font-medium text-[var(--foreground)] text-center">
             {report.statusLine}
           </p>
+
+          {/* Week Mode badge */}
+          {actualMode && (
+            <div className="flex items-center justify-center">
+              <span className={`inline-flex items-center text-sm font-semibold px-3 py-1 rounded-full ${
+                actualMode === "recovery"
+                  ? "bg-[var(--accent)] text-white"
+                  : actualMode === "push"
+                    ? "bg-[var(--primary)] text-white"
+                    : "bg-[var(--input-bg)] text-[var(--foreground)] border border-[var(--border)]"
+              }`}>
+                Week Mode: {actualMode.charAt(0).toUpperCase() + actualMode.slice(1)}
+                {overrideApplied && " (Auto-adjusted)"}
+              </span>
+            </div>
+          )}
+
+          {/* Override banner */}
+          {overrideApplied && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800 text-sm">
+              <p className="font-semibold">Soreness override active</p>
+              <p className="mt-1">
+                At least one area is rated 7/10 or higher. Your plan has been auto-adjusted to Recovery mode to protect you this week.
+              </p>
+            </div>
+          )}
 
           {/* Session cards */}
           {displaySessions.map((session, si) => (
@@ -454,8 +552,8 @@ export default function WeeklyReportPage() {
             </div>
           ))}
 
-          {/* Recovery toggle — only when a moderate session exists */}
-          {moderateIdx >= 0 && (
+          {/* Recovery toggle — only when a moderate session exists and not override-forced */}
+          {moderateIdx >= 0 && !overrideApplied && (
             <button
               onClick={handleRecoveryToggle}
               disabled={recoveryLoading}
@@ -576,7 +674,7 @@ export default function WeeklyReportPage() {
           </a>
 
           <button
-            onClick={() => setReport(null)}
+            onClick={() => { setReport(null); setActualMode(null); setOverrideApplied(false); setRecoveryActive(false); }}
             className="block mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
           >
             Generate another report
@@ -597,6 +695,7 @@ export default function WeeklyReportPage() {
           </div>
         )}
       </main>
+      </>
     );
   }
 
@@ -779,30 +878,6 @@ export default function WeeklyReportPage() {
             </p>
           </div>
 
-          {/* Weekly Load */}
-          <div>
-            <label htmlFor="weeklyLoad" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-              Weekly Load (sessions) <span className="text-[var(--destructive)]">*</span>
-            </label>
-            <div className="relative">
-              <select
-                id="weeklyLoad"
-                required
-                value={weeklyLoad}
-                onChange={(e) => setWeeklyLoad(e.target.value)}
-                className={`${selectClass} ${!weeklyLoad ? "text-[var(--muted)]" : ""}`}
-              >
-                <option value="" disabled>Select sessions this week</option>
-                {WEEKLY_LOAD_OPTIONS.map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-              <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
-
           {/* Legs Status */}
           <div>
             <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">
@@ -837,6 +912,143 @@ export default function WeeklyReportPage() {
                   <span className="text-base text-[var(--foreground)]">{option}</span>
                 </label>
               ))}
+            </div>
+          </div>
+
+          {/* Week Intent */}
+          <div>
+            <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">
+              This Week&apos;s Goal <span className="text-[var(--destructive)]">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {WEEK_INTENT_OPTIONS.map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-3 cursor-pointer select-none"
+                >
+                  <span
+                    className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      requestedMode === option
+                        ? "border-[var(--primary)] bg-[var(--primary)]"
+                        : "border-[var(--border)]"
+                    }`}
+                  >
+                    {requestedMode === option && (
+                      <span className="h-2 w-2 rounded-full bg-white" />
+                    )}
+                  </span>
+                  <input
+                    type="radio"
+                    name="requestedMode"
+                    value={option}
+                    checked={requestedMode === option}
+                    onChange={(e) => setRequestedMode(e.target.value)}
+                    required
+                    className="sr-only"
+                  />
+                  <span className="text-base text-[var(--foreground)]">{option}</span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-[var(--muted)]">
+              Recovery = low intensity only. Balanced = mix. Push = higher volume.
+            </p>
+          </div>
+
+          {/* Soreness */}
+          <div>
+            <label className="block text-sm font-semibold text-[var(--foreground)] mb-1">
+              Soreness (0–10) <span className="text-[var(--destructive)]">*</span>
+            </label>
+            <p className="text-xs text-[var(--muted)] mb-4">
+              0 = fresh, 10 = can&apos;t push
+            </p>
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-[var(--foreground)]">Hamstrings</span>
+                  <span className="text-sm font-medium text-[var(--foreground)] tabular-nums">{sorenessHamstrings}/10</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={sorenessHamstrings}
+                  onChange={(e) => setSorenessHamstrings(Number(e.target.value))}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[var(--primary)] bg-[var(--border)]"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-[var(--foreground)]">Groin / Adductors</span>
+                  <span className="text-sm font-medium text-[var(--foreground)] tabular-nums">{sorenessGroin}/10</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={sorenessGroin}
+                  onChange={(e) => setSorenessGroin(Number(e.target.value))}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[var(--primary)] bg-[var(--border)]"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-[var(--foreground)]">Quads / Calves</span>
+                  <span className="text-sm font-medium text-[var(--foreground)] tabular-nums">{sorenessQuads}/10</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={sorenessQuads}
+                  onChange={(e) => setSorenessQuads(Number(e.target.value))}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[var(--primary)] bg-[var(--border)]"
+                />
+              </div>
+              <div className="border-t border-[var(--border)] pt-3">
+                <label className="flex items-center gap-3 cursor-pointer select-none mb-3">
+                  <input
+                    type="checkbox"
+                    checked={sorenessOtherEnabled}
+                    onChange={(e) => setSorenessOtherEnabled(e.target.checked)}
+                    className="h-4 w-4 rounded border-[var(--border)] text-[var(--primary)] accent-[var(--primary)]"
+                  />
+                  <span className="text-sm text-[var(--foreground)]">
+                    Add another area <span className="text-[var(--muted)] font-normal">(optional)</span>
+                  </span>
+                </label>
+                {sorenessOtherEnabled && (
+                  <div className="space-y-3 pl-7">
+                    <input
+                      type="text"
+                      value={sorenessOtherLabel}
+                      onChange={(e) => setSorenessOtherLabel(e.target.value)}
+                      placeholder="e.g. Lower back, Ankle"
+                      maxLength={40}
+                      className={inputClass}
+                    />
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm text-[var(--foreground)]">{sorenessOtherLabel || "Other"}</span>
+                        <span className="text-sm font-medium text-[var(--foreground)] tabular-nums">{sorenessOtherValue}/10</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={10}
+                        step={1}
+                        value={sorenessOtherValue}
+                        onChange={(e) => setSorenessOtherValue(Number(e.target.value))}
+                        className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[var(--primary)] bg-[var(--border)]"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
