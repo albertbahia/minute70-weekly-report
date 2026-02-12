@@ -4,6 +4,13 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 const TEAMMATE_CODE = "ELMPARC2FREE";
 const RATE_LIMIT_DAYS = 7;
 
+interface SorenessInput {
+  hamstrings: number;
+  groinAdductors: number;
+  quadsCalves: number;
+  other?: { label?: string; value: number };
+}
+
 interface ReportBody {
   email: string;
   matchDay: string;
@@ -15,6 +22,8 @@ interface ReportBody {
   halfLengthMinutes?: number;
   teammateCode?: string;
   emailReminder?: boolean;
+  requestedMode?: string;
+  soreness?: SorenessInput;
 }
 
 const VALID_HALF_LENGTHS = [20, 25, 30, 35, 40, 45];
@@ -23,6 +32,7 @@ const VALID_MATCH_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
 const VALID_LEGS = ["Fresh", "Medium", "Heavy", "Tweaky"];
 const VALID_TISSUE = ["Quads", "Hamstrings", "Calves", "Glutes", "Hip Flexors", "Ankles"];
 const VALID_RECOVERY = ["Walk", "Pool", "Yoga", "Foam Roll", "Contrast Shower", "Full Rest"];
+const VALID_REQUESTED_MODES = ["recovery", "balanced", "push"];
 
 // --- Session detail types ---
 interface Move {
@@ -267,6 +277,25 @@ export async function POST(request: Request) {
       );
     }
 
+    if (body.requestedMode && !VALID_REQUESTED_MODES.includes(body.requestedMode)) {
+      return NextResponse.json(
+        { ok: false, reason: "validation", error: "Invalid requested mode." },
+        { status: 400 }
+      );
+    }
+
+    if (body.soreness) {
+      const s = body.soreness;
+      const vals = [s.hamstrings, s.groinAdductors, s.quadsCalves];
+      if (s.other?.value !== undefined) vals.push(s.other.value);
+      if (vals.some((v) => typeof v !== "number" || v < 0 || v > 10)) {
+        return NextResponse.json(
+          { ok: false, reason: "validation", error: "Soreness values must be 0\u201310." },
+          { status: 400 }
+        );
+      }
+    }
+
     const isTeammate = teammateCode === TEAMMATE_CODE;
 
     // DEV-ONLY: allow x-minute70-tier header to simulate paid tier
@@ -330,6 +359,12 @@ export async function POST(request: Request) {
         half_length_minutes: halfLength,
         teammate_code: isTeammate ? TEAMMATE_CODE : null,
         tier: isPaid ? "paid" : "free",
+        requested_mode: body.requestedMode ?? null,
+        soreness_hamstrings: body.soreness?.hamstrings ?? null,
+        soreness_groin_adductors: body.soreness?.groinAdductors ?? null,
+        soreness_quads_calves: body.soreness?.quadsCalves ?? null,
+        soreness_other_label: body.soreness?.other?.label ?? null,
+        soreness_other_value: body.soreness?.other?.value ?? null,
       })
       .select("id")
       .single();
