@@ -84,27 +84,43 @@ export default function AppDashboard() {
   }, []);
 
   // Fetch profile + plan once authed
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setFetchError(null);
 
-    const [profileRes, planRes] = await Promise.all([
-      fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` } }),
-      fetch("/api/plan", { headers: { Authorization: `Bearer ${token}` } }),
-    ]);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const profileJson = await profileRes.json();
-    const planJson = await planRes.json();
+      const [profileRes, planRes] = await Promise.all([
+        fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }),
+        fetch("/api/plan", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }),
+      ]);
 
-    if (profileJson.ok && profileJson.profile) {
-      setProfileFocus(profileJson.profile.focus);
-    } else {
-      setShowFocusModal(true);
-    }
+      clearTimeout(timeout);
 
-    if (planJson.ok) {
-      setPlan(planJson.plan);
-      setSessions(planJson.sessions ?? []);
+      const profileJson = await profileRes.json();
+      const planJson = await planRes.json();
+
+      if (profileJson.ok && profileJson.profile) {
+        setProfileFocus(profileJson.profile.focus);
+      } else {
+        setShowFocusModal(true);
+      }
+
+      if (planJson.ok) {
+        setPlan(planJson.plan);
+        setSessions(planJson.sessions ?? []);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setFetchError("Request timed out. Check your connection and try again.");
+      } else {
+        setFetchError("Could not load your data. Try again.");
+      }
     }
 
     setLoading(false);
@@ -260,9 +276,35 @@ export default function AppDashboard() {
 
   if (loading || !session) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-[var(--muted)]">Loading...</p>
-      </main>
+      <>
+        <header className="w-full border-b border-[var(--border)]">
+          <div className="max-w-3xl mx-auto flex items-center justify-between px-6 py-4">
+            <span className="text-lg font-bold tracking-tight text-[var(--foreground)]">Minute70</span>
+            <div className="h-4 w-32 rounded bg-[var(--border)] animate-pulse" />
+          </div>
+        </header>
+        <main className="min-h-screen flex items-start justify-center p-6 pt-10">
+          <div className="w-full max-w-lg space-y-6">
+            <div className="h-5 w-24 rounded bg-[var(--border)] animate-pulse" />
+            <div className="h-8 w-40 rounded bg-[var(--border)] animate-pulse" />
+            <div className="h-12 w-full rounded-xl bg-[var(--border)] animate-pulse" />
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2 rounded-full bg-[var(--border)] animate-pulse" />
+              <div className="h-4 w-8 rounded bg-[var(--border)] animate-pulse" />
+            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="h-5 w-24 rounded bg-[var(--border)] animate-pulse" />
+                  <div className="h-5 w-16 rounded-full bg-[var(--border)] animate-pulse" />
+                </div>
+                <div className="h-4 w-48 rounded bg-[var(--border)] animate-pulse" />
+                <div className="h-12 w-full rounded-2xl bg-[var(--border)] animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </main>
+      </>
     );
   }
 
@@ -300,6 +342,19 @@ export default function AppDashboard() {
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--primary)] text-white">
                 {focusLabel}
               </span>
+            </div>
+          )}
+
+          {/* Fetch error */}
+          {fetchError && (
+            <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm flex items-center justify-between">
+              <span>{fetchError}</span>
+              <button
+                onClick={() => fetchData()}
+                className="ml-3 text-red-700 font-semibold underline underline-offset-4 hover:text-red-900 transition-colors"
+              >
+                Retry
+              </button>
             </div>
           )}
 
@@ -442,12 +497,21 @@ export default function AppDashboard() {
               </p>
             </button>
 
-            <button
-              onClick={handleSignOut}
-              className="block mx-auto text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
-            >
-              Sign out
-            </button>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setShowFocusModal(false)}
+                className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
+              >
+                Decide later
+              </button>
+              <span className="text-[var(--border)]">&middot;</span>
+              <button
+                onClick={handleSignOut}
+                className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -582,10 +646,15 @@ export default function AppDashboard() {
                   <input
                     type="text"
                     value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
+                    onChange={(e) => { setPromoCode(e.target.value); setPromoError(null); }}
                     placeholder="Enter code here"
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3.5 text-base text-[var(--foreground)] placeholder-[var(--muted)] border-l-4 border-l-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all duration-200"
                   />
+                  {promoCode.trim() && promoCode.trim().length < 4 && (
+                    <p className="mt-1.5 text-xs text-[var(--muted)]">
+                      Codes are usually 8+ characters (e.g. ELMPARC2FREE)
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={handlePromoRedeem}

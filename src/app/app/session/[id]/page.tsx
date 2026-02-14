@@ -309,6 +309,13 @@ export default function SessionPlayerPage({
           >
             {completing ? "Completing..." : "Complete Session"}
           </button>
+
+          <a
+            href="/app"
+            className="block text-center text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
+          >
+            Cancel and return to dashboard
+          </a>
         </div>
       </main>
     </>
