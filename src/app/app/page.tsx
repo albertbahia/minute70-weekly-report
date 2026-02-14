@@ -249,6 +249,7 @@ export default function AppDashboard() {
   }
 
   async function handleSignOut() {
+    if (!window.confirm("Sign out of Minute70?")) return;
     const supabase = getSupabaseBrowser();
     await supabase.auth.signOut();
     window.location.href = "/weekly-report";
@@ -448,11 +449,26 @@ export default function AppDashboard() {
             </div>
           ))}
 
-          {/* Generate new plan link */}
+          {/* Empty state */}
           {sessions.length === 0 && !loading && (
-            <p className="text-center text-sm text-[var(--muted)]">
-              No sessions yet. Set your focus above to get started.
-            </p>
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-[var(--card-shadow)] p-6 text-center space-y-3">
+              <h3 className="text-base font-bold text-[var(--foreground)]">
+                No sessions yet
+              </h3>
+              <p className="text-sm text-[var(--muted)]">
+                {profileFocus
+                  ? "Your plan is being generated. Pull down to refresh, or check back shortly."
+                  : "Choose your focus area to generate a personalized weekly plan."}
+              </p>
+              {!profileFocus && (
+                <button
+                  onClick={() => setShowFocusModal(true)}
+                  className="inline-block rounded-2xl bg-[var(--primary)] text-white font-semibold px-6 py-3 text-sm hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
+                >
+                  Set your focus
+                </button>
+              )}
+            </div>
           )}
         </div>
       </main>
