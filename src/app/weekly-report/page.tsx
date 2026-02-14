@@ -2,6 +2,9 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import { getLateWindow } from "@/lib/late-window";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { logEvent } from "@/lib/log-event";
+import type { Session } from "@supabase/supabase-js";
 
 const HALF_LENGTH_OPTIONS = [20, 25, 30, 35, 40, 45] as const;
 const DEFAULT_HALF = 25;
@@ -124,6 +127,13 @@ export default function WeeklyReportPage() {
   // Step state
   const [step, setStep] = useState<1 | 2>(1);
 
+  // Auth state
+  const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+
   // Step 1
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -179,6 +189,16 @@ export default function WeeklyReportPage() {
     setRecoveryMode(getStoredRecoveryMode());
   }, []);
 
+  // Check for existing Supabase session on mount — redirect to /app
+  useEffect(() => {
+    const supabase = getSupabaseBrowser();
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (s) {
+        window.location.href = "/app";
+      }
+    });
+  }, []);
+
   // Persist recovery_mode to localStorage on change
   function handleRecoveryModeChange(value: string) {
     setRecoveryMode(value);
@@ -187,29 +207,63 @@ export default function WeeklyReportPage() {
     } catch { /* localStorage unavailable */ }
   }
 
-  function handleContinue(e: FormEvent) {
+  async function handleAuth(e: FormEvent) {
     e.preventDefault();
-    setEmailError(null);
+    setAuthError(null);
     const trimmed = email.trim();
-    if (!trimmed) {
-      setEmailError("Email is required.");
-      return;
-    }
+    if (!trimmed) { setAuthError("Email is required."); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmed)) {
-      setEmailError("Please enter a valid email.");
-      return;
+    if (!emailRegex.test(trimmed)) { setAuthError("Please enter a valid email."); return; }
+    if (password.length < 6) { setAuthError("Password must be at least 6 characters."); return; }
+
+    setAuthLoading(true);
+    const supabase = getSupabaseBrowser();
+
+    if (authMode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email: trimmed,
+        password,
+      });
+      if (error) {
+        setAuthError(error.message);
+        setAuthLoading(false);
+        return;
+      }
+      if (data.session) {
+        setSession(data.session);
+        setEmail(data.session.user.email ?? trimmed);
+        // Fire signup_created event (fire-and-forget)
+        logEvent(data.session.access_token, "signup_created");
+      }
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: trimmed,
+        password,
+      });
+      if (error) {
+        setAuthError(error.message);
+        setAuthLoading(false);
+        return;
+      }
+      if (data.session) {
+        setSession(data.session);
+        setEmail(data.session.user.email ?? trimmed);
+      }
     }
-    setEmail(trimmed);
+
+    // Redirect to app dashboard after successful auth
+    window.location.href = "/app";
+    return;
+
+    // Legacy: step 2 flow (kept but unreachable after redirect)
     setStep(2);
+    setAuthLoading(false);
 
     // Fetch recovery preference (non-blocking)
     fetch(`/api/preferences?email=${encodeURIComponent(trimmed)}`)
       .then((r) => r.json())
-      .then((data) => {
-        if (data.isRecoveryActive) setRecoveryActive(true);
-      })
-      .catch(() => {/* preference fetch is best-effort */});
+      .then((data) => { if (data.isRecoveryActive) setRecoveryActive(true); })
+      .catch(() => {});
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -286,6 +340,15 @@ export default function WeeklyReportPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ eventType: "mode_overridden", payload: { ...eventPayload, overrideReason: "soreness_max>=7" } }),
           }).catch(() => {});
+        }
+
+        // Authenticated event (fire-and-forget)
+        if (session?.access_token) {
+          logEvent(session.access_token, "weekly_report_generated", {
+            mode: finalMode,
+            sorenessMax,
+            overrideApplied: overridden,
+          });
         }
       } else {
         if (json.reason === "limit") {
@@ -711,9 +774,9 @@ export default function WeeklyReportPage() {
             30 seconds → your week plan for strong legs in the final {getLateWindow(DEFAULT_HALF)} minutes.
           </p>
 
-          {emailError && (
+          {authError && (
             <div className="mb-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm">
-              {emailError}
+              {authError}
             </div>
           )}
 
@@ -762,7 +825,7 @@ export default function WeeklyReportPage() {
             </p>
           </div>
 
-          <form onSubmit={handleContinue} className="space-y-7">
+          <form onSubmit={handleAuth} className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
                 Email <span className="text-[var(--destructive)]">*</span>
@@ -776,23 +839,68 @@ export default function WeeklyReportPage() {
                 placeholder="you@example.com"
                 className={inputClass}
               />
-              <p className="mt-1.5 text-xs text-[var(--muted)]">
-                Enter your email to generate this week&apos;s report and (optionally) get a 7-day reminder.
-              </p>
-              <p className="mt-1 text-xs text-[var(--muted)] italic">
-                No spam. Not public.
-              </p>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-[var(--foreground)] mb-2">
+                Password <span className="text-[var(--destructive)]">*</span>
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                className={inputClass}
+              />
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
+              disabled={authLoading}
+              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-60"
             >
-              Continue
+              {authLoading
+                ? "Please wait…"
+                : authMode === "signup"
+                  ? "Sign Up & Continue"
+                  : "Log In & Continue"}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-[var(--muted)]">
+          <p className="mt-4 text-center text-sm text-[var(--muted)]">
+            {authMode === "signup" ? (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("login"); setAuthError(null); }}
+                  className="underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
+                >
+                  Log in
+                </button>
+              </>
+            ) : (
+              <>
+                Don&apos;t have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("signup"); setAuthError(null); }}
+                  className="underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
+                >
+                  Sign up
+                </button>
+              </>
+            )}
+          </p>
+
+          <p className="mt-2 text-center text-xs text-[var(--muted)] italic">
+            No spam. Not public.
+          </p>
+
+          <p className="mt-4 text-center text-xs text-[var(--muted)]">
             Want to join the waitlist when Minute70 fully releases?{" "}
             <a
               href="/waitlist"

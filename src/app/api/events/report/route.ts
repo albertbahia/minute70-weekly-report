@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     .from("report_events")
     .insert({
       event_type: eventType,
-      payload,
+      event_props: payload,
     });
 
   if (insertError) {
