@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { maskEmail } from "@/lib/mask-email";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const TEAMMATE_CODE = "ELMPARC2FREE";
 const RATE_LIMIT_DAYS = 7;
@@ -208,6 +209,12 @@ function generatePlan(
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`weekly-report:${ip}`, 30, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
+  }
+
   try {
     const body: ReportBody = await request.json();
 

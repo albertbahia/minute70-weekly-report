@@ -59,11 +59,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Failed to adjust sessions." }, { status: 500 });
   }
 
-  // Update plan timestamp
-  await supabase
+  // Update plan timestamp (non-blocking — log but don't fail)
+  const { error: tsError } = await supabase
     .from("plans")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", planId);
+
+  if (tsError) {
+    console.error("[auto-adjust] Failed to update plan timestamp:", tsError.message);
+  }
 
   return NextResponse.json({ ok: true, sessionsAdjusted: ids.length });
 }

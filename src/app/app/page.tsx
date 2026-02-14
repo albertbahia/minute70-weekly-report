@@ -20,11 +20,7 @@ interface PlanRow {
   match_id: string | null;
 }
 
-const CAPTAIN_QUOTES = [
-  "Consistency beats intensity. You showed up — that matters.",
-  "The final minutes belong to those who prepare. You're preparing.",
-  "Every session adds a layer of resilience your legs will thank you for.",
-];
+const FETCH_TIMEOUT_MS = 15_000;
 
 export default function AppDashboard() {
   const [session, setSession] = useState<Session | null>(null);
@@ -93,7 +89,7 @@ export default function AppDashboard() {
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15_000);
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
       const [profileRes, planRes] = await Promise.all([
         fetch("/api/profile", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }),
@@ -434,7 +430,7 @@ export default function AppDashboard() {
                   <button
                     onClick={() => handleStartSession(s.id)}
                     disabled={startingSessionId !== null}
-                    className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-60"
+                    className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {startingSessionId === s.id ? "Starting..." : "Start Session"}
                   </button>
@@ -675,7 +671,7 @@ export default function AppDashboard() {
                 <button
                   onClick={handlePromoRedeem}
                   disabled={promoLoading || !promoCode.trim()}
-                  className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] transition-all duration-200 disabled:opacity-60"
+                  className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {promoLoading ? "Redeeming..." : "Redeem Code"}
                 </button>
@@ -707,7 +703,7 @@ export default function AppDashboard() {
             <button
               onClick={handleAutoAdjust}
               disabled={adjustLoading}
-              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] transition-all duration-200 disabled:opacity-60"
+              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {adjustLoading ? "Adjusting..." : "Adjust my plan"}
             </button>
