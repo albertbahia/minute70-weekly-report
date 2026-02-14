@@ -130,14 +130,14 @@ async function run() {
   const f = await postTo(WAITLIST_BASE, { email: WAITLIST_EMAIL });
   check("status 200", f.status === 200, `got ${f.status}`);
   check("ok=true", f.data.ok === true, `got ${f.data.ok}`);
-  check('status="created"', f.data.status === "created", `got ${f.data.status}`);
+  check('status="ok"', f.data.status === "ok", `got ${f.data.status}`);
 
-  // G) Waitlist — duplicate email returns exists
-  console.log("\nG) Waitlist duplicate (exists)");
+  // G) Waitlist — duplicate email (uniform response)
+  console.log("\nG) Waitlist duplicate (uniform)");
   const g = await postTo(WAITLIST_BASE, { email: WAITLIST_EMAIL });
   check("status 200", g.status === 200, `got ${g.status}`);
   check("ok=true", g.data.ok === true, `got ${g.data.ok}`);
-  check('status="exists"', g.data.status === "exists", `got ${g.data.status}`);
+  check('status="ok"', g.data.status === "ok", `got ${g.data.status}`);
 
   // H) Waitlist — missing email rejected
   console.log("\nH) Waitlist missing email");

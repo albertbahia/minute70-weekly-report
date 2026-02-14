@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
+import { verifyJwt } from "@/lib/verify-jwt";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const email = searchParams.get("email")?.trim().toLowerCase();
-
-  if (!email) {
-    return NextResponse.json(
-      { ok: false, error: "Email is required." },
-      { status: 400 },
-    );
+  const jwt = await verifyJwt(request);
+  if (!jwt.ok) {
+    return NextResponse.json({ ok: false, error: jwt.error }, { status: jwt.status });
   }
 
   const supabase = getSupabaseAdmin();
+
+  // Look up by user_id via auth.users email join
+  const { data: user } = await supabase.auth.admin.getUserById(jwt.userId);
+  const email = user?.user?.email?.toLowerCase();
+  if (!email) {
+    return NextResponse.json({ ok: true, isRecoveryActive: false });
+  }
 
   const { data, error } = await supabase
     .from("waitlist_signups")
@@ -22,16 +25,12 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (error) {
-    console.error("Preferences lookup failed:", error);
-    return NextResponse.json(
-      { ok: false, error: "Server error." },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: false, error: "Server error." }, { status: 500 });
   }
 
   const prefRecoveryUntil: string | null = data?.pref_recovery_until ?? null;
   const isRecoveryActive =
     prefRecoveryUntil !== null && new Date(prefRecoveryUntil) > new Date();
 
-  return NextResponse.json({ ok: true, prefRecoveryUntil, isRecoveryActive });
+  return NextResponse.json({ ok: true, isRecoveryActive });
 }

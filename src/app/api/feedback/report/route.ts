@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const ALLOWED_CHOICES = [
   "Clear and actionable — I can follow this",
@@ -18,6 +19,12 @@ interface FeedbackBody {
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`feedback:${ip}`, 5, 60_000); // 5 per minute
+  if (!rl.allowed) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
+  }
+
   let body: FeedbackBody;
   try {
     body = await request.json();

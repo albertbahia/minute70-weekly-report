@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 interface WaitlistBody {
   email: string;
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`waitlist:${ip}`, 5, 60_000); // 5 per minute
+  if (!rl.allowed) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
+  }
+
   let body: WaitlistBody;
   try {
     body = await request.json();
@@ -50,7 +57,7 @@ export async function POST(request: Request) {
   }
 
   if (existing && existing.length > 0) {
-    return NextResponse.json({ ok: true, status: "exists" });
+    return NextResponse.json({ ok: true, status: "ok" });
   }
 
   // Insert new signup
@@ -61,7 +68,7 @@ export async function POST(request: Request) {
   if (insertError) {
     // Handle unique constraint race condition
     if (insertError.code === "23505") {
-      return NextResponse.json({ ok: true, status: "exists" });
+      return NextResponse.json({ ok: true, status: "ok" });
     }
     return NextResponse.json(
       { ok: false, error: "Something went wrong." },
@@ -69,5 +76,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, status: "created" });
+  return NextResponse.json({ ok: true, status: "ok" });
 }
