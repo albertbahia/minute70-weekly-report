@@ -57,6 +57,10 @@ export default function AppDashboard() {
   // Paywall message
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
 
+  // Session start state
+  const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
+  const [sessionStartError, setSessionStartError] = useState<string | null>(null);
+
   const token = session?.access_token ?? "";
 
   const headers = useCallback(
@@ -152,22 +156,35 @@ export default function AppDashboard() {
   }
 
   async function handleStartSession(sessionId: string) {
-    const res = await fetch(`/api/sessions/${sessionId}/start`, {
-      method: "POST",
-      headers: headers(),
-    });
-    const json = await res.json();
+    setStartingSessionId(sessionId);
+    setSessionStartError(null);
 
-    if (json.paywallRequired) {
-      setShowPaywall(true);
-      logEvent(token, "paywall_viewed", { triggered_by: "session_start" });
-      return;
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/start`, {
+        method: "POST",
+        headers: headers(),
+      });
+      const json = await res.json();
+
+      if (json.paywallRequired) {
+        setShowPaywall(true);
+        logEvent(token, "paywall_viewed", { triggered_by: "session_start" });
+        setStartingSessionId(null);
+        return;
+      }
+
+      if (json.ok) {
+        logEvent(token, "session_started", { session_id: sessionId, focus: plan?.focus });
+        window.location.href = `/app/session/${sessionId}`;
+        return;
+      }
+
+      setSessionStartError(json.error ?? "Could not start session. Try again.");
+    } catch {
+      setSessionStartError("Network error. Check your connection and try again.");
     }
 
-    if (json.ok) {
-      logEvent(token, "session_started", { session_id: sessionId, focus: plan?.focus });
-      window.location.href = `/app/session/${sessionId}`;
-    }
+    setStartingSessionId(null);
   }
 
   async function handlePromoRedeem() {
@@ -352,12 +369,20 @@ export default function AppDashboard() {
               </p>
 
               {s.status === "scheduled" && (
-                <button
-                  onClick={() => handleStartSession(s.id)}
-                  className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
-                >
-                  Start Session
-                </button>
+                <>
+                  {sessionStartError && startingSessionId === null && (
+                    <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-red-700 text-sm">
+                      {sessionStartError}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleStartSession(s.id)}
+                    disabled={startingSessionId !== null}
+                    className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-3 text-base hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-60"
+                  >
+                    {startingSessionId === s.id ? "Starting..." : "Start Session"}
+                  </button>
+                </>
               )}
 
               {s.status === "completed" && s.completed_at && (
@@ -430,10 +455,11 @@ export default function AppDashboard() {
       {/* ===== PAYWALL MODAL ===== */}
       {showPaywall && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--card)] rounded-2xl shadow-[var(--card-shadow-lg)] p-8 max-w-md w-full space-y-6">
+          <div className="bg-[var(--card)] rounded-2xl shadow-[var(--card-shadow-lg)] p-8 max-w-md w-full space-y-6 relative">
             <button
               onClick={() => { setShowPaywall(false); setPaywallMessage(null); }}
-              className="absolute top-4 right-4 text-[var(--muted)] hover:text-[var(--foreground)]"
+              className="absolute top-4 right-4 text-2xl leading-none text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              aria-label="Close"
             >
               &times;
             </button>

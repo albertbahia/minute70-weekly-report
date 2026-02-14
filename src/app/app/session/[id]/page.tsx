@@ -25,6 +25,8 @@ export default function SessionPlayerPage({
   const [timeLeft, setTimeLeft] = useState(8 * 60);
   const [checkedMoves, setCheckedMoves] = useState<Set<string>>(new Set());
   const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const startTimeRef = useRef<number>(Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -108,29 +110,38 @@ export default function SessionPlayerPage({
   async function handleComplete() {
     if (completing) return;
     setCompleting(true);
+    setCompleteError(null);
 
     if (intervalRef.current) clearInterval(intervalRef.current);
 
     const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
 
-    const res = await fetch(`/api/sessions/${sessionId}/complete`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ completed_moves: Array.from(checkedMoves) }),
-    });
-
-    const json = await res.json();
-    if (json.ok) {
-      logEvent(token, "session_completed", {
-        session_id: sessionId,
-        completed_moves_count: checkedMoves.size,
-        duration_seconds_elapsed: elapsed,
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/complete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ completed_moves: Array.from(checkedMoves) }),
       });
-      setPhase("done");
+
+      const json = await res.json();
+      if (json.ok) {
+        logEvent(token, "session_completed", {
+          session_id: sessionId,
+          completed_moves_count: checkedMoves.size,
+          duration_seconds_elapsed: elapsed,
+        });
+        setElapsedSeconds(elapsed);
+        setPhase("done");
+      } else {
+        setCompleteError(json.error ?? "Could not complete session. Try again.");
+      }
+    } catch {
+      setCompleteError("Network error. Check your connection and try again.");
     }
+
     setCompleting(false);
   }
 
@@ -196,7 +207,9 @@ export default function SessionPlayerPage({
 
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-medium">
               {checkedMoves.size} of {moves.length} moves completed in{" "}
-              {durationMin} minutes.
+              {elapsedSeconds >= 60
+                ? `${Math.floor(elapsedSeconds / 60)} min ${elapsedSeconds % 60}s`
+                : `${elapsedSeconds}s`}.
             </div>
 
             <div className="space-y-3">
@@ -284,6 +297,11 @@ export default function SessionPlayerPage({
           </div>
 
           {/* Complete button */}
+          {completeError && (
+            <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700 text-sm">
+              {completeError}
+            </div>
+          )}
           <button
             onClick={handleComplete}
             disabled={completing}
