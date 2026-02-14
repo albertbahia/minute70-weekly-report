@@ -224,3 +224,36 @@ CREATE INDEX IF NOT EXISTS idx_readiness_signals_user_id
 
 CREATE INDEX IF NOT EXISTS idx_readiness_signals_user_captured
   ON public.readiness_signals (user_id, captured_at DESC);
+
+-- ============================================================
+-- 10. Atomic session counter decrement function
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.decrement_session_counter(
+  p_entitlement_id uuid,
+  p_week_start timestamptz,
+  p_weekly_limit int
+) RETURNS int LANGUAGE plpgsql AS $$
+DECLARE
+  v_remaining int;
+BEGIN
+  UPDATE public.entitlements
+  SET
+    weekly_pro_sessions_remaining = CASE
+      WHEN weekly_sessions_reset_at < p_week_start THEN p_weekly_limit - 1
+      ELSE weekly_pro_sessions_remaining - 1
+    END,
+    weekly_sessions_reset_at = CASE
+      WHEN weekly_sessions_reset_at < p_week_start THEN now()
+      ELSE weekly_sessions_reset_at
+    END
+  WHERE id = p_entitlement_id
+    AND (CASE
+      WHEN weekly_sessions_reset_at < p_week_start THEN p_weekly_limit
+      ELSE weekly_pro_sessions_remaining
+    END) > 0
+  RETURNING weekly_pro_sessions_remaining INTO v_remaining;
+
+  RETURN COALESCE(v_remaining, -1);
+END;
+$$;

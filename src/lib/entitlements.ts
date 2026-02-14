@@ -66,42 +66,36 @@ export async function canStartSession(
     return { allowed: true, reason: "pro_active", entitlementStatus: status };
   }
 
-  // Promo: check expiry + weekly limit
+  // Promo: check expiry + weekly limit (atomic decrement)
   if (status === "promo") {
     if (ent.end_at && now > new Date(ent.end_at)) {
       return { allowed: false, reason: "promo_expired", entitlementStatus: "promo" };
     }
 
-    // Weekly reset check
     const weekStart = getStartOfWeek(now);
-    const lastReset = new Date(ent.weekly_sessions_reset_at);
-    let remaining: number = ent.weekly_pro_sessions_remaining;
 
-    if (lastReset < weekStart) {
-      // Reset counter for new week
-      remaining = PROMO_WEEKLY_SESSIONS;
-      await supabase
-        .from("entitlements")
-        .update({
-          weekly_pro_sessions_remaining: remaining,
-          weekly_sessions_reset_at: now.toISOString(),
-        })
-        .eq("id", ent.id);
+    // Atomic: resets counter if new week, then decrements if > 0
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      "decrement_session_counter",
+      {
+        p_entitlement_id: ent.id,
+        p_week_start: weekStart.toISOString(),
+        p_weekly_limit: PROMO_WEEKLY_SESSIONS,
+      },
+    );
+
+    if (rpcError) {
+      return { allowed: false, reason: "server_error", entitlementStatus: "promo" };
     }
 
-    if (remaining <= 0) {
+    // rpcResult = -1 means no rows updated (limit reached), >= 0 means remaining after decrement
+    if (rpcResult < 0) {
       return {
         allowed: false,
         reason: "weekly_limit_reached",
         entitlementStatus: "promo",
       };
     }
-
-    // Decrement counter
-    await supabase
-      .from("entitlements")
-      .update({ weekly_pro_sessions_remaining: remaining - 1 })
-      .eq("id", ent.id);
 
     return { allowed: true, reason: "promo_active", entitlementStatus: "promo" };
   }

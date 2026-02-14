@@ -182,7 +182,7 @@ export default function WeeklyReportPage() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState(false);
 
-  const teammateValidated = teammateCode === "ELMPARC2FREE";
+  const [teammateValidated, setTeammateValidated] = useState(false);
 
   // Load recovery_mode from localStorage on mount
   useEffect(() => {
@@ -301,6 +301,7 @@ export default function WeeklyReportPage() {
 
       if (json.ok === true) {
         setReport(json);
+        setTeammateValidated(json.source === "teammate");
 
         // Compute soreness override
         const sorenessValues = [sorenessHamstrings, sorenessGroin, sorenessQuads];
@@ -737,7 +738,7 @@ export default function WeeklyReportPage() {
           </a>
 
           <button
-            onClick={() => { setReport(null); setActualMode(null); setOverrideApplied(false); setRecoveryActive(false); }}
+            onClick={() => { setReport(null); setActualMode(null); setOverrideApplied(false); setRecoveryActive(false); setTeammateValidated(false); }}
             className="block mx-auto text-sm text-[var(--muted)] hover:text-[var(--primary)] transition-colors underline underline-offset-4"
           >
             Generate another report

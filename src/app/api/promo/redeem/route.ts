@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   // Check existing redemption
   const { data: existing } = await supabase
     .from("promo_redemptions")
-    .select("*")
+    .select("id, attempts, status, expires_at")
     .eq("user_id", jwt.userId)
     .eq("code", PROMO_CODE)
     .single();

@@ -11,11 +11,20 @@ export async function POST(
     return NextResponse.json({ ok: false, error: jwt.error }, { status: jwt.status });
   }
 
-  let body: { completed_moves?: string[] } = {};
+  let body: { completed_moves?: unknown } = {};
   try {
     body = await request.json();
   } catch {
     // Body is optional
+  }
+
+  // Validate completed_moves: array of strings, max 50 items, max 200 chars each
+  let completedMoves: string[] = [];
+  if (Array.isArray(body.completed_moves)) {
+    completedMoves = body.completed_moves
+      .filter((m): m is string => typeof m === "string")
+      .slice(0, 50)
+      .map((m) => m.slice(0, 200));
   }
 
   const { id: sessionId } = await params;
@@ -56,7 +65,7 @@ export async function POST(
   await supabase.from("session_events").insert({
     session_id: sessionId,
     event_type: "completed",
-    payload: { completed_moves: body.completed_moves ?? [] },
+    payload: { completed_moves: completedMoves },
   });
 
   return NextResponse.json({ ok: true, completedAt: new Date().toISOString() });
