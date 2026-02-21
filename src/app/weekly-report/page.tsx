@@ -39,12 +39,16 @@ export default function WeeklyReportPage() {
 
   // Check for existing Supabase session on mount — redirect to /app
   useEffect(() => {
-    const supabase = getSupabaseBrowser();
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (s) {
-        window.location.href = "/app";
-      }
-    });
+    try {
+      const supabase = getSupabaseBrowser();
+      supabase.auth.getSession().then(({ data: { session: s } }) => {
+        if (s) {
+          window.location.href = "/app";
+        }
+      });
+    } catch {
+      // env vars not configured — stay on page so user can still see the form
+    }
   }, []);
 
   async function handleAuth(e: FormEvent) {
