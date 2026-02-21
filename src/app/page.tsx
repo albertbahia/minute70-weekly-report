@@ -67,7 +67,7 @@ export default function Home() {
             </Link>
           </div>
           <p className="text-sm font-light text-[var(--muted)]">
-            Free &middot; No account needed &middot; 30 seconds
+            Free &middot; Quick signup &middot; 30 seconds
           </p>
           <p className="text-xs text-[var(--muted)]">
             Default league half length: {DEFAULT_HALF} minutes &middot; Late window = last {DEFAULT_LATE} minutes

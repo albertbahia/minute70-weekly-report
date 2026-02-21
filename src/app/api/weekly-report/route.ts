@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { maskEmail } from "@/lib/mask-email";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const TEAMMATE_CODE = "ELMPARC2FREE";
 const RATE_LIMIT_DAYS = 7;
@@ -207,6 +209,12 @@ function generatePlan(
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`weekly-report:${ip}`, 30, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
+  }
+
   try {
     const body: ReportBody = await request.json();
 
@@ -322,7 +330,7 @@ export async function POST(request: Request) {
           new Date(recent[0].created_at).getTime() + RATE_LIMIT_DAYS * 24 * 60 * 60 * 1000
         );
         const daysRemaining = Math.ceil((nextAllowed.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-        console.log(`[rate-limit] blocked ${email.toLowerCase()} — ${daysRemaining}d remaining`);
+        console.log(`[rate-limit] blocked ${maskEmail(email)} — ${daysRemaining}d remaining`);
         return NextResponse.json(
           {
             ok: false,
@@ -384,7 +392,7 @@ export async function POST(request: Request) {
           );
         }
 
-        console.log(`[rate-limit/db] blocked ${email.toLowerCase()} — ${daysRemaining}d remaining`);
+        console.log(`[rate-limit/db] blocked ${maskEmail(email)} — ${daysRemaining}d remaining`);
         return NextResponse.json(
           {
             ok: false,
@@ -429,12 +437,12 @@ export async function POST(request: Request) {
         console.error("Follow-up insert failed:", followupError);
       } else {
         followupCreated = true;
-        console.log(`[followup] scheduled for ${email.toLowerCase()} — send_at=${sendAt}`);
+        console.log(`[followup] scheduled for ${maskEmail(email)} — send_at=${sendAt}`);
       }
     }
 
     const source = isPaid ? "teammate" : "public";
-    console.log(`[report] saved for ${email.toLowerCase()} — source=${source}`);
+    console.log(`[report] saved for ${maskEmail(email)} — source=${source}`);
 
     const plan = generatePlan(legsStatus, matchDay, tissueFocus, includeSpeedExposure, recoveryMode);
 

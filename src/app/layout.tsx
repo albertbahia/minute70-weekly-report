@@ -13,8 +13,12 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Minute70 Weekly Report",
-  description: "Submit your Minute70 weekly report",
+  title: "Minute70 — Late-Game Legs, Engineered",
+  description:
+    "A free weekly training plan built around your match day. Answer a few questions, get a personalized session plan in seconds.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

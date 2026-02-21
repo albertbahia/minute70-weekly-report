@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const ALLOWED_EVENTS = ["report_generated", "mode_overridden"] as const;
 
@@ -9,6 +10,12 @@ interface EventBody {
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`events:${ip}`, 20, 60_000); // 20 per minute
+  if (!rl.allowed) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
+  }
+
   let body: EventBody;
   try {
     body = await request.json();
@@ -43,7 +50,7 @@ export async function POST(request: Request) {
     .from("report_events")
     .insert({
       event_type: eventType,
-      payload,
+      event_props: payload,
     });
 
   if (insertError) {
