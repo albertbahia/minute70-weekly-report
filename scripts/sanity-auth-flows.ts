@@ -135,6 +135,7 @@ async function run() {
   check("sessions array", Array.isArray(sessions), `got ${typeof sessions}`);
   check("sessions.length >= 1", sessions.length >= 1, `got ${sessions.length}`);
   const sessionId = sessions[0]?.id as string;
+  const secondSessionId = sessions[1]?.id as string | undefined;
   check("session has id", typeof sessionId === "string", `got ${typeof sessionId}`);
   check("session status=scheduled", sessions[0]?.status === "scheduled", `got ${sessions[0]?.status}`);
   check("session has moves", Array.isArray(sessions[0]?.moves), `got ${typeof sessions[0]?.moves}`);
@@ -148,6 +149,20 @@ async function run() {
   // Wrong session ID
   const p2 = await api("POST", "/sessions/00000000-0000-0000-0000-000000000000/start", token);
   check("start 404 (bad session)", p2.status === 404, `got ${p2.status}`);
+
+  // ===== P2) Free tier: allowed on first session =====
+  console.log("\nP2) Free tier: allowed on first session");
+  await adminClient.from("entitlements").upsert({
+    user_id: userId,
+    status: "free",
+    start_at: new Date().toISOString(),
+  });
+  if (secondSessionId) {
+    const p3 = await api("POST", `/sessions/${secondSessionId}/start`, token);
+    check("start 200 (free tier, first this week)", p3.status === 200, `got ${p3.status}`);
+    check("ok=true", p3.data.ok === true, `got ${p3.data.ok}`);
+    check("session returned", p3.data.session != null, "session is null");
+  }
 
   // ===== Q) Promo redeem + session start =====
   console.log("\nQ) Promo redeem + session start");
@@ -194,10 +209,28 @@ async function run() {
   const completedSession = updatedSessions.find((s) => s.id === sessionId);
   check("session now completed", completedSession?.status === "completed", `got ${completedSession?.status}`);
 
+  // ===== S) Session feedback =====
+  console.log("\nS) Session feedback");
+  const s1 = await api("POST", `/sessions/${sessionId}/feedback`, token, { rating: "up" });
+  check("feedback up → 200", s1.status === 200, `got ${s1.status}`);
+  check("ok=true", s1.data.ok === true, `got ${s1.data.ok}`);
+
+  const s2 = await api("POST", `/sessions/${sessionId}/feedback`, token, { rating: "down" });
+  check("feedback down → 200", s2.status === 200, `got ${s2.status}`);
+  check("ok=true", s2.data.ok === true, `got ${s2.data.ok}`);
+
+  const s3 = await api("POST", `/sessions/${sessionId}/feedback`, token, { rating: "invalid" });
+  check("invalid rating → 400", s3.status === 400, `got ${s3.status}`);
+  check("ok=false", s3.data.ok === false, `got ${s3.data.ok}`);
+
+  const s4 = await api("POST", "/sessions/00000000-0000-0000-0000-000000000000/feedback", token, { rating: "up" });
+  check("bad session → 404", s4.status === 404, `got ${s4.status}`);
+
   // ===== Cleanup =====
   console.log("\n  (cleaning up test user...)");
   // Delete in dependency order
-  await adminClient.from("session_events").delete().eq("session_id", sessionId);
+  const allSessionIds = sessions.map((s) => s.id as string);
+  await adminClient.from("session_events").delete().in("session_id", allSessionIds);
   const planId = (plan as Record<string, unknown>).id as string;
   await adminClient.from("sessions").delete().eq("plan_id", planId);
   await adminClient.from("plans").delete().eq("user_id", userId);
