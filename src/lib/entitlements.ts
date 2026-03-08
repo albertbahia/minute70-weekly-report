@@ -47,11 +47,30 @@ export async function canStartSession(
     .limit(1)
     .single();
 
+  const now = new Date();
+
   if (error || !ent) {
-    return { allowed: false, reason: "no_entitlement", entitlementStatus: "none" };
+    // No entitlement row — treat as free tier (1 session/week)
+    const weekStart = getStartOfWeek(now);
+    const { data: userPlans } = await supabase.from("plans").select("id").eq("user_id", userId);
+    const planIds = (userPlans ?? []).map((p: { id: string }) => p.id);
+    if (planIds.length === 0) {
+      return { allowed: true, reason: "free_active", entitlementStatus: "free" };
+    }
+    const { data: userSessions } = await supabase.from("sessions").select("id").in("plan_id", planIds);
+    const sessionIds = (userSessions ?? []).map((s: { id: string }) => s.id);
+    const { count } = await supabase
+      .from("session_events")
+      .select("id", { count: "exact", head: true })
+      .in("session_id", sessionIds)
+      .eq("event_type", "started")
+      .gte("created_at", weekStart.toISOString());
+    if ((count ?? 0) >= FREE_WEEKLY_SESSIONS) {
+      return { allowed: false, reason: "free_weekly_limit_reached", entitlementStatus: "free" };
+    }
+    return { allowed: true, reason: "free_active", entitlementStatus: "free" };
   }
 
-  const now = new Date();
   const status = ent.status as EntitlementStatus;
 
   // Free tier: 1 session per week
