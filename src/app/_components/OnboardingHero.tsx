@@ -159,7 +159,7 @@ export default function OnboardingHero() {
           poster="/hero-poster.jpg"
           aria-hidden="true"
         >
-          <source src="/hero.mp4" type="video/mp4" />
+          <source src="https://jwyzirf2p9nsxfdg.public.blob.vercel-storage.com/hero.mp4" type="video/mp4" />
         </video>
 
         {/* Dark overlay — preserves text readability */}
