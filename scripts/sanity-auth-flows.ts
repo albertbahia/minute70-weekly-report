@@ -140,29 +140,28 @@ async function run() {
   check("session status=scheduled", sessions[0]?.status === "scheduled", `got ${sessions[0]?.status}`);
   check("session has moves", Array.isArray(sessions[0]?.moves), `got ${typeof sessions[0]?.moves}`);
 
-  // ===== P) Session start — blocked without entitlement =====
-  console.log("\nP) Session start (no entitlement)");
-  const p1 = await api("POST", `/sessions/${sessionId}/start`, token);
-  check("start 403 (no entitlement)", p1.status === 403, `got ${p1.status}`);
-  check("paywallRequired=true", p1.data.paywallRequired === true, `got ${p1.data.paywallRequired}`);
+  // ===== P) Session start — no entitlement row = free tier =====
+  console.log("\nP) Session start (no entitlement = free tier)");
+  // First session this week is allowed even with no entitlement row
+  if (secondSessionId) {
+    const p1 = await api("POST", `/sessions/${secondSessionId}/start`, token);
+    check("start 200 (no entitlement, first this week)", p1.status === 200, `got ${p1.status}`);
+    check("ok=true", p1.data.ok === true, `got ${p1.data.ok}`);
+    check("session returned", p1.data.session != null, "session is null");
+  }
 
   // Wrong session ID
   const p2 = await api("POST", "/sessions/00000000-0000-0000-0000-000000000000/start", token);
   check("start 404 (bad session)", p2.status === 404, `got ${p2.status}`);
 
-  // ===== P2) Free tier: allowed on first session =====
-  console.log("\nP2) Free tier: allowed on first session");
-  await adminClient.from("entitlements").upsert({
-    user_id: userId,
-    status: "free",
-    start_at: new Date().toISOString(),
-  });
-  if (secondSessionId) {
-    const p3 = await api("POST", `/sessions/${secondSessionId}/start`, token);
-    check("start 200 (free tier, first this week)", p3.status === 200, `got ${p3.status}`);
-    check("ok=true", p3.data.ok === true, `got ${p3.data.ok}`);
-    check("session returned", p3.data.session != null, "session is null");
-  }
+  // ===== P2) Free tier — weekly limit reached after first session =====
+  console.log("\nP2) Free tier: weekly limit reached after first session");
+  // P already started secondSessionId (consuming the 1 free session this week)
+  // Attempting sessionId now should be blocked
+  const p3 = await api("POST", `/sessions/${sessionId}/start`, token);
+  check("start 403 (free weekly limit reached)", p3.status === 403, `got ${p3.status}`);
+  check("paywallRequired=true", p3.data.paywallRequired === true, `got ${p3.data.paywallRequired}`);
+  check("reason=free_weekly_limit_reached", p3.data.reason === "free_weekly_limit_reached", `got ${p3.data.reason}`);
 
   // ===== Q) Promo redeem + session start =====
   console.log("\nQ) Promo redeem + session start");
