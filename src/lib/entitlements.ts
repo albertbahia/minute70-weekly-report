@@ -5,6 +5,7 @@ export const PROMO_CODE = "ELMPARC2FREE";
 export const PROMO_MAX_ATTEMPTS = 3;
 export const PROMO_DURATION_DAYS = 28;
 export const PROMO_WEEKLY_SESSIONS = 3;
+export const FREE_WEEKLY_SESSIONS = 1;
 
 export type EntitlementStatus =
   | "free"
@@ -53,9 +54,37 @@ export async function canStartSession(
   const now = new Date();
   const status = ent.status as EntitlementStatus;
 
-  // Free tier cannot start sessions
+  // Free tier: 1 session per week
   if (status === "free") {
-    return { allowed: false, reason: "free_tier", entitlementStatus: "free" };
+    const weekStart = getStartOfWeek(now);
+
+    const { data: userPlans } = await supabase
+      .from("plans")
+      .select("id")
+      .eq("user_id", userId);
+    const planIds = (userPlans ?? []).map((p: { id: string }) => p.id);
+
+    if (planIds.length === 0) {
+      return { allowed: true, reason: "free_active", entitlementStatus: "free" };
+    }
+
+    const { data: userSessions } = await supabase
+      .from("sessions")
+      .select("id")
+      .in("plan_id", planIds);
+    const sessionIds = (userSessions ?? []).map((s: { id: string }) => s.id);
+
+    const { count } = await supabase
+      .from("session_events")
+      .select("id", { count: "exact", head: true })
+      .in("session_id", sessionIds)
+      .eq("event_type", "started")
+      .gte("created_at", weekStart.toISOString());
+
+    if ((count ?? 0) >= FREE_WEEKLY_SESSIONS) {
+      return { allowed: false, reason: "free_weekly_limit_reached", entitlementStatus: "free" };
+    }
+    return { allowed: true, reason: "free_active", entitlementStatus: "free" };
   }
 
   // Pro or trial: check expiry
