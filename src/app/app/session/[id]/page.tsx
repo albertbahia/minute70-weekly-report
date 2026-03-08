@@ -27,6 +27,7 @@ export default function SessionPlayerPage({
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const startTimeRef = useRef<number>(Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -145,6 +146,15 @@ export default function SessionPlayerPage({
     setCompleting(false);
   }
 
+  async function handleFeedback(rating: "up" | "down") {
+    setFeedback(rating);
+    fetch(`/api/sessions/${sessionId}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ rating }),
+    }).catch(() => {});
+  }
+
   // Captain quote — deterministic from sessionId
   const quoteIndex = sessionId
     ? sessionId.charCodeAt(0) % CAPTAIN_QUOTES.length
@@ -210,6 +220,33 @@ export default function SessionPlayerPage({
               {elapsedSeconds >= 60
                 ? `${Math.floor(elapsedSeconds / 60)} min ${elapsedSeconds % 60}s`
                 : `${elapsedSeconds}s`}.
+            </div>
+
+            {/* Feedback */}
+            <div className="space-y-2 text-center">
+              {feedback ? (
+                <p className="text-sm text-[var(--muted)]">Thanks for the feedback.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-[var(--muted)]">Was this session right for you?</p>
+                  <div className="flex justify-center gap-4">
+                    <button
+                      onClick={() => handleFeedback("up")}
+                      className="text-2xl hover:scale-110 transition-transform"
+                      aria-label="Yes"
+                    >
+                      👍
+                    </button>
+                    <button
+                      onClick={() => handleFeedback("down")}
+                      className="text-2xl hover:scale-110 transition-transform"
+                      aria-label="No"
+                    >
+                      👎
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="space-y-3">
