@@ -73,9 +73,12 @@ export default function WeeklyReportPage() {
         setAuthLoading(false);
         return;
       }
-      if (data.session) {
-        logEvent(data.session.access_token, "signup_created");
+      if (!data.session) {
+        setAuthError("Check your inbox — we sent you a confirmation link.");
+        setAuthLoading(false);
+        return;
       }
+      logEvent(data.session.access_token, "signup_created");
     } else {
       const { error } = await supabase.auth.signInWithPassword({
         email: trimmed,
