@@ -52,6 +52,7 @@ export default function AppDashboard() {
 
   // Paywall message
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
+  const [paywallReason, setPaywallReason] = useState<string | null>(null);
 
   // Session start state
   const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
@@ -104,7 +105,29 @@ export default function AppDashboard() {
       if (profileJson.ok && profileJson.profile) {
         setProfileFocus(profileJson.profile.focus);
       } else {
-        setShowFocusModal(true);
+        // Check for focus saved during the questionnaire flow
+        try {
+          const stored = localStorage.getItem("minute70_onboarding");
+          if (stored) {
+            const onboarding = JSON.parse(stored) as { focus?: string };
+            if (onboarding.focus) {
+              setProfileFocus(onboarding.focus);
+              fetch("/api/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ focus: onboarding.focus }),
+              }).then(() => {
+                localStorage.removeItem("minute70_onboarding");
+              }).catch(() => {});
+            } else {
+              setShowFocusModal(true);
+            }
+          } else {
+            setShowFocusModal(true);
+          }
+        } catch {
+          setShowFocusModal(true);
+        }
       }
 
       if (planJson.ok) {
@@ -179,6 +202,7 @@ export default function AppDashboard() {
       const json = await res.json();
 
       if (json.paywallRequired) {
+        setPaywallReason(json.reason ?? null);
         setShowPaywall(true);
         logEvent(token, "paywall_viewed", { triggered_by: "session_start" });
         setStartingSessionId(null);
@@ -533,7 +557,7 @@ export default function AppDashboard() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-[var(--card)] rounded-2xl shadow-[var(--card-shadow-lg)] p-8 max-w-md w-full space-y-6 relative">
             <button
-              onClick={() => { setShowPaywall(false); setPaywallMessage(null); }}
+              onClick={() => { setShowPaywall(false); setPaywallMessage(null); setPaywallReason(null); }}
               className="absolute top-4 right-4 text-2xl leading-none text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
               aria-label="Close"
             >
@@ -544,7 +568,9 @@ export default function AppDashboard() {
               Unlock guided sessions
             </h2>
             <p className="text-sm text-[var(--muted)] text-center">
-              Access 8-minute guided sessions that adapt to your week.
+              {paywallReason === "free_weekly_limit_reached"
+                ? "You've used your 1 free session this week. Upgrade for unlimited sessions."
+                : "Access 8-minute guided sessions that adapt to your week."}
             </p>
 
             {paywallMessage && (
