@@ -29,24 +29,44 @@ const FAQ = [
 
 export default function Home() {
   return (
-    <>
-      {/* Header */}
-      <header className="w-full border-b border-[var(--border)]">
-        <div className="max-w-3xl mx-auto flex items-center justify-between px-6 py-4">
-          <a href="/" className="text-lg font-bold tracking-tight text-[var(--foreground)]">
+    <div className="relative">
+      {/* Transparent header — overlays the dark hero */}
+      <header className="absolute top-0 left-0 right-0 z-10">
+        <div className="max-w-3xl mx-auto flex items-center justify-between px-6 py-5">
+          <a href="/" className="text-lg font-bold tracking-tight text-[var(--on-dark)]">
             Minute70
+          </a>
+          <a
+            href="#onboarding"
+            className="text-sm font-medium text-[var(--on-dark-muted)] hover:text-[var(--on-dark)] transition-colors"
+          >
+            Sign in
           </a>
         </div>
       </header>
 
       <main className="flex flex-col items-center">
-        {/* Questionnaire + preview + auth — inline, no extra click */}
+        {/* Questionnaire + preview + auth — dark hero */}
         <OnboardingHero />
+
+        {/* Social proof strip */}
+        <div className="w-full bg-[var(--hero-bg)]">
+          <div className="max-w-3xl mx-auto px-6 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
+            {["3 questions", "8-min sessions", "Free first session"].map((stat) => (
+              <span
+                key={stat}
+                className="text-xs font-semibold uppercase tracking-widest text-[var(--on-dark-muted)]"
+              >
+                {stat}
+              </span>
+            ))}
+          </div>
+        </div>
 
         {/* How it works */}
         <div className="w-full bg-[var(--card)] border-t border-[var(--border)]">
           <section className="max-w-2xl mx-auto py-16 px-6">
-            <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] text-center mb-10">
+            <h2 className="text-3xl font-black tracking-tight text-[var(--foreground)] text-center mb-10">
               How it works
             </h2>
             <div className="grid sm:grid-cols-3 gap-8 text-center">
@@ -86,7 +106,7 @@ export default function Home() {
         {/* FAQ */}
         <div className="w-full bg-[var(--card)] border-t border-[var(--border)]">
           <section className="max-w-2xl mx-auto py-16 px-6">
-            <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] text-center mb-10">
+            <h2 className="text-3xl font-black tracking-tight text-[var(--foreground)] text-center mb-10">
               Questions
             </h2>
             <div className="max-w-lg mx-auto space-y-6">
@@ -113,6 +133,6 @@ export default function Home() {
           </p>
         </div>
       </footer>
-    </>
+    </div>
   );
 }
