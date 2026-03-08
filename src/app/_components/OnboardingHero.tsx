@@ -55,6 +55,25 @@ const PREVIEW_SESSIONS: Record<Focus, { title: string; moves: string[] }[]> = {
   ],
 };
 
+function StepDots({ current, dark }: { current: 1 | 2 | 3; dark?: boolean }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-10">
+      {([1, 2, 3] as const).map((n) => (
+        <div
+          key={n}
+          className={`h-1.5 rounded-full transition-all duration-300 ${
+            n === current
+              ? "w-6 bg-[var(--primary)]"
+              : n < current
+              ? `w-3 ${dark ? "bg-[var(--primary)]/50" : "bg-[var(--primary)]/40"}`
+              : `w-3 ${dark ? "bg-[var(--on-dark-border)]" : "bg-[var(--border)]"}`
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function OnboardingHero() {
   const [step, setStep] = useState<Step>("questionnaire");
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -123,104 +142,143 @@ export default function OnboardingHero() {
   const lateWindow = getLateWindow(DEFAULT_HALF);
   const previewSessions = focus ? PREVIEW_SESSIONS[focus] : [];
 
-  // ── Step 1: Questionnaire ──────────────────────────────────────────────────
+  // ── Step 1: Questionnaire — dark hero ─────────────────────────────────────
   if (step === "questionnaire") {
     return (
-      <section className="w-full max-w-2xl mx-auto pt-20 sm:pt-28 pb-16 px-6">
-        <div className="text-center space-y-4 mb-10">
-          <p className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
-            Late-Game Legs, Engineered
-          </p>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[var(--foreground)] leading-[1.1]">
-            Finish strong in the final&nbsp;{lateWindow}&nbsp;minutes
-          </h1>
-          <p className="text-lg font-light text-[var(--muted)] max-w-lg mx-auto">
-            Answer 3 questions — see your personalized training plan instantly.
-          </p>
-        </div>
+      <section
+        id="onboarding"
+        className="w-full relative overflow-hidden"
+      >
+        {/* Looping background video */}
+        <video
+          className="absolute inset-0 w-full h-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          poster="/hero-poster.jpg"
+          aria-hidden="true"
+        >
+          <source src="/hero.mp4" type="video/mp4" />
+        </video>
 
-        <div className="max-w-lg mx-auto space-y-7">
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-[var(--foreground)]">What&apos;s your #1 concern?</p>
-            <button
-              onClick={() => setFocus("late_game")}
-              className={`w-full text-left rounded-xl border-2 p-5 transition-colors ${
-                focus === "late_game"
-                  ? "border-[var(--primary)] bg-[var(--primary)]/5"
-                  : "border-[var(--border)] hover:border-[var(--primary)]"
-              }`}
-            >
-              <p className="text-base font-semibold text-[var(--foreground)]">Late-game legs</p>
-              <p className="text-sm text-[var(--muted)] mt-1">Legs fade in the last 20 minutes</p>
-            </button>
-            <button
-              onClick={() => setFocus("injury_prevention")}
-              className={`w-full text-left rounded-xl border-2 p-5 transition-colors ${
-                focus === "injury_prevention"
-                  ? "border-[var(--primary)] bg-[var(--primary)]/5"
-                  : "border-[var(--border)] hover:border-[var(--primary)]"
-              }`}
-            >
-              <p className="text-base font-semibold text-[var(--foreground)]">Injury prevention</p>
-              <p className="text-sm text-[var(--muted)] mt-1">Reduce risk of hamstring / groin injuries</p>
-            </button>
-          </div>
+        {/* Dark overlay — preserves text readability */}
+        <div className="absolute inset-0 bg-[var(--hero-bg)]/90" />
 
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-[var(--foreground)]">Match day</p>
-            <div className="flex flex-wrap gap-2">
-              {MATCH_DAYS.map((day) => (
-                <button
-                  key={day}
-                  onClick={() => setMatchDay(day)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    matchDay === day
-                      ? "bg-[var(--primary)] text-white"
-                      : "bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--border)] hover:border-[var(--primary)]"
-                  }`}
-                >
-                  {day.slice(0, 3)}
-                </button>
+        {/* All existing content — sits above the video */}
+        <div className="relative z-10 max-w-2xl mx-auto pt-28 sm:pt-36 pb-16 px-6">
+          <StepDots current={1} dark />
+
+          <div className="text-center space-y-5 mb-12">
+            <p className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
+              Late-Game Legs, Engineered
+            </p>
+            <h1
+              className="text-5xl sm:text-6xl font-black tracking-tight leading-[0.95] text-[var(--on-dark)]"
+              style={{ fontFamily: "var(--font-heading), system-ui, sans-serif" }}
+            >
+              Finish strong in the final&nbsp;{lateWindow}&nbsp;minutes
+            </h1>
+            <p className="text-lg font-light text-[var(--on-dark-muted)] max-w-lg mx-auto">
+              Answer 3 questions — see your personalized training plan instantly.
+            </p>
+            <div className="flex flex-wrap gap-3 justify-center pt-1">
+              {["3 Questions", "8-Min Sessions", "Free First Session"].map((stat, i, arr) => (
+                <span key={stat} className="flex items-center gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-[var(--on-dark-muted)]">
+                    {stat}
+                  </span>
+                  {i < arr.length - 1 && (
+                    <span className="text-[var(--on-dark-border)] select-none">·</span>
+                  )}
+                </span>
               ))}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-[var(--foreground)]">Legs this week</p>
-            <div className="flex flex-wrap gap-2">
-              {LEGS_OPTIONS.map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => setLegsStatus(opt)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    legsStatus === opt
-                      ? "bg-[var(--primary)] text-white"
-                      : "bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--border)] hover:border-[var(--primary)]"
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
+          <div className="max-w-lg mx-auto space-y-7">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-[var(--on-dark)]">What&apos;s your #1 concern?</p>
+              <button
+                onClick={() => setFocus("late_game")}
+                className={`w-full text-left rounded-xl border-2 p-5 transition-all duration-200 ${
+                  focus === "late_game"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/15"
+                    : "border-[var(--on-dark-border)] bg-white/5 hover:border-[var(--primary)]/60"
+                }`}
+              >
+                <p className="text-base font-semibold text-[var(--on-dark)]">Late-game legs</p>
+                <p className="text-sm text-[var(--on-dark-muted)] mt-1">Legs fade in the last 20 minutes</p>
+              </button>
+              <button
+                onClick={() => setFocus("injury_prevention")}
+                className={`w-full text-left rounded-xl border-2 p-5 transition-all duration-200 ${
+                  focus === "injury_prevention"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/15"
+                    : "border-[var(--on-dark-border)] bg-white/5 hover:border-[var(--primary)]/60"
+                }`}
+              >
+                <p className="text-base font-semibold text-[var(--on-dark)]">Injury prevention</p>
+                <p className="text-sm text-[var(--on-dark-muted)] mt-1">Reduce risk of hamstring / groin injuries</p>
+              </button>
             </div>
-          </div>
 
-          <button
-            onClick={handleShowPlan}
-            disabled={!focus}
-            className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            See my plan →
-          </button>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-[var(--on-dark)]">Match day</p>
+              <div className="flex flex-wrap gap-2">
+                {MATCH_DAYS.map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => setMatchDay(day)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      matchDay === day
+                        ? "bg-[var(--primary)] text-white"
+                        : "bg-white/8 text-[var(--on-dark-muted)] border border-[var(--on-dark-border)] hover:border-[var(--primary)]/60"
+                    }`}
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <p className="text-center text-sm text-[var(--muted)]">
-            Already have an account?{" "}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-[var(--on-dark)]">Legs this week</p>
+              <div className="flex flex-wrap gap-2">
+                {LEGS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setLegsStatus(opt)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      legsStatus === opt
+                        ? "bg-[var(--primary)] text-white"
+                        : "bg-white/8 text-[var(--on-dark-muted)] border border-[var(--on-dark-border)] hover:border-[var(--primary)]/60"
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
-              onClick={() => { setAuthMode("login"); setStep("auth"); }}
-              className="underline underline-offset-4 hover:text-[var(--primary)] transition-colors"
+              onClick={handleShowPlan}
+              disabled={!focus}
+              className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)] disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Sign in
+              See my plan →
             </button>
-          </p>
+
+            <p className="text-center text-sm text-[var(--on-dark-muted)]">
+              Already have an account?{" "}
+              <button
+                onClick={() => { setAuthMode("login"); setStep("auth"); }}
+                className="text-[var(--on-dark)] underline underline-offset-4 hover:text-white transition-colors"
+              >
+                Sign in
+              </button>
+            </p>
+          </div>
         </div>
       </section>
     );
@@ -229,8 +287,10 @@ export default function OnboardingHero() {
   // ── Step 2: Preview ────────────────────────────────────────────────────────
   if (step === "preview") {
     return (
-      <section className="w-full max-w-2xl mx-auto pt-20 sm:pt-28 pb-16 px-6">
+      <section className="w-full bg-[var(--background)] pt-20 sm:pt-28 pb-16 px-6">
         <div className="max-w-lg mx-auto space-y-6">
+          <StepDots current={2} />
+
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)] mb-1">
               Your plan is ready
@@ -244,7 +304,7 @@ export default function OnboardingHero() {
           </div>
 
           {previewSessions[0] && (
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 space-y-3">
+            <div className="bg-[var(--card)] rounded-2xl p-5 space-y-3" style={{ border: `1px solid var(--border)`, borderLeft: `4px solid var(--primary)` }}>
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-bold text-[var(--foreground)]">Session 1</h3>
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--border)]">
@@ -285,11 +345,12 @@ export default function OnboardingHero() {
                   ))}
                 </ul>
               </div>
-              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-[var(--card)]/60">
+              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-[var(--card)]/70">
                 <svg className="w-6 h-6 mb-2 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                <p className="text-sm font-semibold text-[var(--foreground)]">Free account unlocks all sessions</p>
+                <p className="text-base font-bold text-[var(--foreground)]">Unlock your full week</p>
+                <p className="text-sm text-[var(--muted)] mt-0.5">Free · No credit card</p>
               </div>
             </div>
           )}
@@ -298,7 +359,7 @@ export default function OnboardingHero() {
             onClick={() => { setAuthMode("signup"); setStep("auth"); }}
             className="w-full rounded-2xl bg-[var(--primary)] text-white font-semibold py-4 text-lg hover:scale-[1.02] hover:shadow-[0_6px_20px_-2px_rgba(26,122,107,0.4)] transition-all duration-200 shadow-[0_4px_14px_-2px_rgba(26,122,107,0.3)]"
           >
-            Create free account — start your first session free
+            Start training free →
           </button>
 
           <p className="text-center text-sm text-[var(--muted)]">
@@ -326,8 +387,10 @@ export default function OnboardingHero() {
 
   // ── Step 3: Auth ───────────────────────────────────────────────────────────
   return (
-    <section className="w-full max-w-2xl mx-auto pt-20 sm:pt-28 pb-16 px-6">
+    <section className="w-full bg-[var(--background)] pt-20 sm:pt-28 pb-16 px-6">
       <div className="max-w-lg mx-auto space-y-6">
+        <StepDots current={3} />
+
         <div className="text-center">
           <h1 className="text-2xl font-bold text-[var(--foreground)] mb-1">
             {authMode === "signup" ? "Create your free account" : "Welcome back"}
@@ -337,6 +400,11 @@ export default function OnboardingHero() {
               ? "Your first session is free every week."
               : "Continue where you left off."}
           </p>
+          {focus && authMode === "signup" && (
+            <p className="text-sm italic text-[var(--muted)] mt-1">
+              Your {focus === "late_game" ? "late-game" : "injury prevention"} plan is ready.
+            </p>
+          )}
         </div>
 
         {authError && (
